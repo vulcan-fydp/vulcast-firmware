@@ -1,7 +1,22 @@
 [package]
 name = "vulcast-firmware"
+authors = ["Callum"]
 version = "0.1.0"
 edition = "2018"
+description = "Vulcast firmware"
+readme = "README.md"
+license = "TODO"
+
+[package.metadata.deb]
+depends = "$auto, systemd"
+extended-description = "Firmware for Vulcast device"
+section = "admin"
+priority = "optional"
+assets = [
+    ["target/release/vulcast-firmware", "usr/bin/vulcast-firmware", "755"],
+    ["debian/vulcast-firmware.service", "/lib/systemd/system/vulcast-firmware.service", "644"], 
+]
+maintainer-scripts = "debian/scripts"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
@@ -13,6 +28,7 @@ env_logger = "0.8.3"
 serde = { version = "1.0.124", features = ["derive"] }
 serde_json = "1.0.64"
 uuid = { version = "0.8.2", features = ["serde", "v4"] }
+rust-ini = "0.17.0"
 
 thiserror = "1.0"
 anyhow = "1.0"
@@ -30,11 +46,11 @@ graphql_client = "0.9"
 native-tls = "0.2"
 http = "0.2"
 tokio-tungstenite = { version = "0.14", features = ["native-tls"] }
-reqwest = { version = "0.11.3", features = ["json"] }
+reqwest = { version = "0.11.4", features = ["json"] }
 
 graphql-ws = { git = "ssh://git@github.com/Netdex/graphql-ws.git" }
 backend-schema = { path = "../schema" }
-# backend-schema = { git = "ssh://git@github.com/vulcan-fydp/schema.git" }
+# backend-schema = { git = "ssh://git@github.com/vulcan-fydp/schema.git", branch = "add_queries" }
 
 [build-dependencies]
 built = "0.5"

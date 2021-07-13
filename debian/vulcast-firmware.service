@@ -1,0 +1,14 @@
+[Unit]
+Description=Vulcast firmware
+AssertPathExists=/usr/bin/vulcast-firmware
+
+[Service]
+WorkingDirectory=~
+ExecStart=/usr/bin/vulcast-firmware
+Restart=always
+PrivateTmp=true
+NoNewPrivileges=true
+
+[Install]
+Alias=vulcast-firmware
+WantedBy=default.target
