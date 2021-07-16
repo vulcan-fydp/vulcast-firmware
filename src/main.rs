@@ -1,17 +1,17 @@
 use anyhow::{anyhow, Result};
-use backend_schema::{schema, signal_schema};
+use backend_schema::assign_vulcast_to_relay::AssignVulcastToRelayAssignVulcastToRelay::{
+    AuthenticationError, RelayAssignment, VulcastAssignedToRelayError,
+};
+use backend_schema::log_in_as_vulcast::LogInAsVulcastLogInAsVulcast::{
+    AuthenticationError as LoginAuthenticationError, VulcastAuthentication,
+};
 use graphql_client::{GraphQLQuery, Response};
 use graphql_ws::GraphQLWebSocket;
 use http::Uri;
 use ini::Ini;
 use native_tls::TlsConnector;
 use reqwest;
-use schema::assign_vulcast_to_relay::AssignVulcastToRelayAssignVulcastToRelay::{
-    AuthenticationError, RelayAssignment, VulcastAssignedToRelayError,
-};
-use schema::log_in_as_vulcast::LogInAsVulcastLogInAsVulcast::{
-    AuthenticationError as LoginAuthenticationError, VulcastAuthentication,
-};
+use schema::{backend_schema, signal_schema};
 use serde::Serialize;
 use tokio::net::TcpStream;
 use tokio_tungstenite::Connector;
@@ -38,16 +38,18 @@ async fn login(conf: &Ini, client: &reqwest::Client) -> Result<String> {
         .to_owned()
         + "/graphql";
 
-    let login_query = schema::LogInAsVulcast::build_query(schema::log_in_as_vulcast::Variables {
-        vulcast_guid: guid,
-        secret: secret,
-    });
+    let login_query =
+        backend_schema::LogInAsVulcast::build_query(backend_schema::log_in_as_vulcast::Variables {
+            vulcast_guid: guid,
+            secret: secret,
+        });
     let auth = client.post(&uri).json(&login_query).send().await?;
-    let response_body: Response<schema::log_in_as_vulcast::ResponseData> = auth.json().await?;
+    let response_body: Response<backend_schema::log_in_as_vulcast::ResponseData> =
+        auth.json().await?;
     if let Some(errors) = response_body.errors {
         errors.iter().for_each(|error| log::error!("{:?}", error))
     }
-    let response_data: schema::log_in_as_vulcast::ResponseData = response_body
+    let response_data: backend_schema::log_in_as_vulcast::ResponseData = response_body
         .data
         .ok_or(anyhow!("Request returned no data"))?;
     match response_data.log_in_as_vulcast {
@@ -69,8 +71,9 @@ async fn assign_relay(
         .to_owned()
         + "/graphql";
 
-    let register_query =
-        schema::AssignVulcastToRelay::build_query(schema::assign_vulcast_to_relay::Variables {});
+    let register_query = backend_schema::AssignVulcastToRelay::build_query(
+        backend_schema::assign_vulcast_to_relay::Variables {},
+    );
     let res = client
         .post(&uri)
         .bearer_auth("vulcast_".to_owned() + &auth_token)
@@ -78,13 +81,15 @@ async fn assign_relay(
         .send()
         .await?;
 
-    let response_body: Response<schema::assign_vulcast_to_relay::ResponseData> = res.json().await?;
+    let response_body: Response<backend_schema::assign_vulcast_to_relay::ResponseData> =
+        res.json().await?;
     if let Some(errors) = response_body.errors {
         errors.iter().for_each(|error| log::error!("{:?}", error))
     }
-    let response_data: schema::assign_vulcast_to_relay::ResponseData = response_body
-        .data
-        .ok_or(anyhow!("Request returned no data"))?;
+    let response_data: backend_schema::assign_vulcast_to_relay::ResponseData =
+        response_body
+            .data
+            .ok_or(anyhow!("Request returned no data"))?;
     match response_data.assign_vulcast_to_relay {
         RelayAssignment(assignment) => {
             Ok((assignment.relay.host_name, assignment.relay_access_token))
@@ -106,7 +111,6 @@ async fn main() -> Result<()> {
 
     let access_token = login(&conf, &client).await?;
     let (relay_host, relay_token) = assign_relay(&conf, &client, &access_token).await?;
-    let relay_host = "192.168.0.180".to_owned();
 
     log::info!("Assigned to relay {:?}", relay_host);
 
@@ -115,7 +119,7 @@ async fn main() -> Result<()> {
         .expect("Signal port not specified")
         .parse()
         .expect("Signal port could not be parsed as an int");
-    let relay_uri: Uri = format!("wss://{}:{}", relay_host, port).parse().unwrap();
+    let relay_uri: Uri = format!("ws://{}:{}", relay_host, port).parse().unwrap();
 
     log::info!("{:?}", relay_uri);
 
@@ -129,13 +133,9 @@ async fn main() -> Result<()> {
         .danger_accept_invalid_hostnames(true)
         .danger_accept_invalid_certs(true)
         .build()?;
-    let (socket, _response) = tokio_tungstenite::client_async_tls_with_config(
-        req,
-        stream,
-        None,
-        Some(Connector::NativeTls(connector)),
-    )
-    .await?;
+    let (socket, _response) =
+        tokio_tungstenite::client_async_tls_with_config(req, stream, None, Some(Connector::Plain))
+            .await?;
 
     log::info!("hi");
 
