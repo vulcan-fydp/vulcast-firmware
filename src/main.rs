@@ -1,8 +1,11 @@
+mod graphql;
+use graphql::backend_query;
+
 use anyhow::{anyhow, Result};
-use backend_schema::assign_vulcast_to_relay::AssignVulcastToRelayAssignVulcastToRelay::{
+use backend_query::assign_vulcast_to_relay::AssignVulcastToRelayAssignVulcastToRelay::{
     AuthenticationError, RelayAssignment, VulcastAssignedToRelayError,
 };
-use backend_schema::log_in_as_vulcast::LogInAsVulcastLogInAsVulcast::{
+use backend_query::log_in_as_vulcast::LogInAsVulcastLogInAsVulcast::{
     AuthenticationError as LoginAuthenticationError, VulcastAuthentication,
 };
 use graphql_client::{GraphQLQuery, Response};
@@ -11,7 +14,6 @@ use http::Uri;
 use ini::Ini;
 use native_tls::TlsConnector;
 use reqwest;
-use schema::{backend_schema, signal_schema};
 use serde::Serialize;
 use tokio::net::TcpStream;
 use tokio_tungstenite::Connector;
@@ -39,17 +41,17 @@ async fn login(conf: &Ini, client: &reqwest::Client) -> Result<String> {
         + "/graphql";
 
     let login_query =
-        backend_schema::LogInAsVulcast::build_query(backend_schema::log_in_as_vulcast::Variables {
+        backend_query::LogInAsVulcast::build_query(backend_query::log_in_as_vulcast::Variables {
             vulcast_guid: guid,
             secret: secret,
         });
     let auth = client.post(&uri).json(&login_query).send().await?;
-    let response_body: Response<backend_schema::log_in_as_vulcast::ResponseData> =
+    let response_body: Response<backend_query::log_in_as_vulcast::ResponseData> =
         auth.json().await?;
     if let Some(errors) = response_body.errors {
         errors.iter().for_each(|error| log::error!("{:?}", error))
     }
-    let response_data: backend_schema::log_in_as_vulcast::ResponseData = response_body
+    let response_data: backend_query::log_in_as_vulcast::ResponseData = response_body
         .data
         .ok_or(anyhow!("Request returned no data"))?;
     match response_data.log_in_as_vulcast {
@@ -71,8 +73,8 @@ async fn assign_relay(
         .to_owned()
         + "/graphql";
 
-    let register_query = backend_schema::AssignVulcastToRelay::build_query(
-        backend_schema::assign_vulcast_to_relay::Variables {},
+    let register_query = backend_query::AssignVulcastToRelay::build_query(
+        backend_query::assign_vulcast_to_relay::Variables {},
     );
     let res = client
         .post(&uri)
@@ -81,15 +83,14 @@ async fn assign_relay(
         .send()
         .await?;
 
-    let response_body: Response<backend_schema::assign_vulcast_to_relay::ResponseData> =
+    let response_body: Response<backend_query::assign_vulcast_to_relay::ResponseData> =
         res.json().await?;
     if let Some(errors) = response_body.errors {
         errors.iter().for_each(|error| log::error!("{:?}", error))
     }
-    let response_data: backend_schema::assign_vulcast_to_relay::ResponseData =
-        response_body
-            .data
-            .ok_or(anyhow!("Request returned no data"))?;
+    let response_data: backend_query::assign_vulcast_to_relay::ResponseData = response_body
+        .data
+        .ok_or(anyhow!("Request returned no data"))?;
     match response_data.assign_vulcast_to_relay {
         RelayAssignment(assignment) => {
             Ok((assignment.relay.host_name, assignment.relay_access_token))

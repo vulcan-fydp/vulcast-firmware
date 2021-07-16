@@ -1,0 +1,29 @@
+mutation LogInAsVulcast($vulcastGuid : String!, $secret : String!) {
+  logInAsVulcast(vulcastGuid: $vulcastGuid, secret: $secret) {
+    __typename
+    ... on VulcastAuthentication {
+      vulcastAccessToken
+    }
+    ... on AuthenticationError {
+      message
+    }
+  }
+}
+
+mutation AssignVulcastToRelay {
+  assignVulcastToRelay {
+    __typename
+    ... on RelayAssignment {
+      relay {
+        hostName
+      }
+      relayAccessToken
+    }
+    ... on AuthenticationError {
+      message
+    }
+    ... on VulcastAssignedToRelayError {
+      message
+    }
+  }
+}
