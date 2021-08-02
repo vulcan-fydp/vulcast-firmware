@@ -235,17 +235,18 @@ async fn main() -> Result<()> {
     // let tee_fmt = "test.mp4";
 
     #[rustfmt::skip]
-    let mut ffmpeg = Command::new("/home/pi/ffmpeg-4.4-armhf-static/ffmpeg")
-        // .stdout(Stdio::null())
-        .stderr(Stdio::null())
+    // let mut ffmpeg = Command::new("/home/pi/ffmpeg-4.4-armhf-static/ffmpeg")
+    let mut ffmpeg = Command::new("ffmpeg")
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .args(&[
             "-f", "v4l2", "-thread_queue_size", "1024", "-input_format", "mjpeg",
             "-video_size", "1280x720", "-framerate", "30", "-i", "/dev/video0",
             "-f", "alsa", "-thread_queue_size", "1024", "-ac", "2", "-i", "hw:CARD=MS2109,DEV=0",
             // "-c:v", "copy",
-            "-c:v", "libx264", "-profile:v", "baseline", "-level:v", "4.0", "-g", "48", "-tune", "zerolatency",
-            // "-c:v", "h264_omx", "-profile:v", "baseline",
+            // "-c:v", "libx264", "-profile:v", "baseline", "-level:v", "4.0", "-g", "48", "-tune", "zerolatency",
             // "-c:v", "h264_v4l2m2m",
+            "-c:v", "h264_omx", "-profile:v", "baseline", "-bsf:v", "h264_mp4toannexb,dump_extra",
             "-pix_fmt", "yuv420p",
             "-map", "0:v:0",
             "-map", "1:a:0",
