@@ -267,21 +267,21 @@ async fn main() -> Result<()> {
     // let mut ffmpeg = Command::new("/home/pi/ffmpeg-4.4-armhf-static/ffmpeg")
     let mut ffmpeg = Command::new("ffmpeg")
         // .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
+        // .stderr(Stdio::piped())
         .args(&[
             "-fflags", "+genpts",
-            // "-f", "v4l2", "-thread_queue_size", "1024", "-input_format", "mjpeg",
-            // "-video_size", "1280x720", "-framerate", "30", "-i", "/dev/video0",
-            // "-f", "alsa", "-thread_queue_size", "1024", "-ac", "2", "-i", "hw:CARD=MS2109,DEV=0",
-            "-re", "-stream_loop", "-1", "-i", "out.mp4",
+            "-f", "v4l2", "-thread_queue_size", "1024", "-input_format", "mjpeg",
+            "-video_size", "640x480", "-framerate", "30", "-i", "/dev/video0",
+            "-f", "alsa", "-thread_queue_size", "1024", "-ac", "2", "-i", "hw:CARD=MS2109,DEV=0",
+            // "-re", "-stream_loop", "-1", "-i", "esker.mp4",
             // "-c:v", "copy",
-            "-c:v", "libx264", "-preset", "ultrafast", "-maxrate", "3000k", "-bufsize", "3000k", "-g", "48", "-tune", "zerolatency",
-            // "-c:v", "h264_v4l2m2m",
-            // "-c:v", "h264_omx", "-profile:v", "baseline", "-bsf:v", "h264_mp4toannexb,dump_extra", "-g", "60",
+            "-c:v", "libx264", "-preset", "ultrafast", "-maxrate", "3000k", "-bufsize", "3000k", "-g", "60", "-tune", "zerolatency",
+            // "-c:v", "h264_v4l2m2m", "-bsf:v", "h264_mp4toannexb,dump_extra", "-g", "48",
+            // "-c:v", "h264_omx", "-profile:v", "baseline", "-bsf:v", "h264_mp4toannexb,dump_extra", "-g", "48",
             "-pix_fmt", "yuv420p",
             "-map", "0:v:0",
-            // "-map", "1:a:0",
-            "-map", "0:a:0",
+            "-map", "1:a:0",
+            // "-map", "0:a:0",
             "-c:a", "libopus", "-ab", "128k", "-ac", "2", "-ar", "48000",
             "-f", "tee", &tee_fmt,
         ])
