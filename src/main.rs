@@ -1,5 +1,9 @@
+use std::io::Read;
+use std::num::{NonZeroU32, NonZeroU8};
+
 mod graphql;
 use graphql::backend_query;
+use graphql::signal_query;
 
 use anyhow::{anyhow, Result};
 use backend_query::assign_vulcast_to_relay::AssignVulcastToRelayAssignVulcastToRelay::{
@@ -8,13 +12,19 @@ use backend_query::assign_vulcast_to_relay::AssignVulcastToRelayAssignVulcastToR
 use backend_query::log_in_as_vulcast::LogInAsVulcastLogInAsVulcast::{
     AuthenticationError as LoginAuthenticationError, VulcastAuthentication,
 };
+use futures::StreamExt;
 use graphql_client::{GraphQLQuery, Response};
 use graphql_ws::GraphQLWebSocket;
 use http::Uri;
 use ini::Ini;
+use mediasoup::rtp_parameters::{
+    MediaKind, MimeTypeAudio, MimeTypeVideo, RtpCodecParameters, RtpCodecParametersParameters,
+    RtpEncodingParameters, RtpParameters,
+};
 use native_tls::TlsConnector;
 use reqwest;
 use serde::Serialize;
+use std::process::{Command, Stdio};
 use tokio::net::TcpStream;
 use tokio_tungstenite::Connector;
 
@@ -42,7 +52,7 @@ async fn login(conf: &Ini, client: &reqwest::Client) -> Result<String> {
 
     let login_query =
         backend_query::LogInAsVulcast::build_query(backend_query::log_in_as_vulcast::Variables {
-            vulcast_guid: guid,
+            vulcast_id: guid,
             secret: secret,
         });
     let auth = client.post(&uri).json(&login_query).send().await?;
@@ -122,15 +132,15 @@ async fn main() -> Result<()> {
         .expect("Signal port could not be parsed as an int");
     let relay_uri: Uri = format!("ws://{}:{}", relay_host, port).parse().unwrap();
 
-    log::info!("{:?}", relay_uri);
+    log::info!("Connecting to relay at {:?}", relay_uri);
 
-    let stream = TcpStream::connect((relay_host, port)).await?;
+    let stream = TcpStream::connect((relay_host.clone(), port)).await?;
     let req = http::Request::builder()
         .uri(relay_uri)
         .header("Sec-WebSocket-Protocol", "graphql-ws")
         .body(())?;
 
-    let connector = TlsConnector::builder()
+    let _connector = TlsConnector::builder()
         .danger_accept_invalid_hostnames(true)
         .danger_accept_invalid_certs(true)
         .build()?;
@@ -138,10 +148,130 @@ async fn main() -> Result<()> {
         tokio_tungstenite::client_async_tls_with_config(req, stream, None, Some(Connector::Plain))
             .await?;
 
-    log::info!("hi");
+    let ws_client = GraphQLWebSocket::new();
+    ws_client.connect(
+        socket,
+        Some(serde_json::to_value(SessionToken { token: relay_token })?),
+    );
 
-    let mut ws_client = GraphQLWebSocket::new();
-    ws_client.connect(socket, Some(serde_json::to_value(relay_token)?));
+    let audio_transport_options = ws_client
+        .query_unchecked::<signal_query::CreatePlainTransport>(
+            signal_query::create_plain_transport::Variables,
+        )
+        .await
+        .create_plain_transport;
+    log::debug!("Audio transport options: {:?}", audio_transport_options);
+    let video_transport_options = ws_client
+        .query_unchecked::<signal_query::CreatePlainTransport>(
+            signal_query::create_plain_transport::Variables,
+        )
+        .await
+        .create_plain_transport;
+    log::debug!("Video transport options: {:?}", video_transport_options);
+
+    let audio_transport_id = audio_transport_options.id;
+    let video_transport_id = video_transport_options.id;
+
+    let audio_producer_id = ws_client
+        .query_unchecked::<signal_query::ProducePlain>(signal_query::produce_plain::Variables {
+            transport_id: audio_transport_id,
+            kind: MediaKind::Audio,
+            rtp_parameters: RtpParameters {
+                codecs: vec![RtpCodecParameters::Audio {
+                    mime_type: MimeTypeAudio::Opus,
+                    payload_type: 101,
+                    clock_rate: NonZeroU32::new(48000).unwrap(),
+                    channels: NonZeroU8::new(2).unwrap(),
+                    parameters: RtpCodecParametersParameters::from([("sprop-stereo", 1u32.into())]),
+                    rtcp_feedback: vec![],
+                }],
+                encodings: vec![RtpEncodingParameters {
+                    ssrc: Some(11111111),
+                    ..RtpEncodingParameters::default()
+                }],
+                ..RtpParameters::default()
+            },
+        })
+        .await
+        .produce_plain;
+    log::debug!("audio producer: {:?}", audio_producer_id);
+
+    let video_producer_id = ws_client
+        .query_unchecked::<signal_query::ProducePlain>(signal_query::produce_plain::Variables {
+            transport_id: video_transport_id,
+            kind: MediaKind::Video,
+            rtp_parameters: RtpParameters {
+                codecs: vec![RtpCodecParameters::Video {
+                    mime_type: MimeTypeVideo::H264,
+                    payload_type: 102,
+                    clock_rate: NonZeroU32::new(90000).unwrap(),
+                    parameters: RtpCodecParametersParameters::from([
+                        ("packetization-mode", 1u32.into()),
+                        ("level-asymmetry-allowed", 1u32.into()),
+                        ("profile-level-id", "42e01f".into()),
+                    ]),
+                    rtcp_feedback: vec![],
+                }],
+                encodings: vec![RtpEncodingParameters {
+                    ssrc: Some(22222222),
+                    ..RtpEncodingParameters::default()
+                }],
+                ..RtpParameters::default()
+            },
+        })
+        .await
+        .produce_plain;
+    log::debug!("video producer: {:?}", video_producer_id);
+
+    let tee_fmt = format!(
+        "[select=a:f=rtp:ssrc=11111111:payload_type=101]rtp://{}:{}|\
+         [select=v:f=rtp:ssrc=22222222:payload_type=102]rtp://{}:{}",
+        audio_transport_options.tuple.local_ip(),
+        audio_transport_options.tuple.local_port(),
+        video_transport_options.tuple.local_ip(),
+        video_transport_options.tuple.local_port()
+    );
+
+    // let tee_fmt = "test.mp4";
+
+    #[rustfmt::skip]
+    let mut ffmpeg = Command::new("/home/pi/ffmpeg-4.4-armhf-static/ffmpeg")
+        // .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .args(&[
+            "-f", "v4l2", "-thread_queue_size", "1024", "-input_format", "mjpeg",
+            "-video_size", "1280x720", "-framerate", "30", "-i", "/dev/video0",
+            "-f", "alsa", "-thread_queue_size", "1024", "-ac", "2", "-i", "hw:CARD=MS2109,DEV=0",
+            // "-c:v", "copy",
+            "-c:v", "libx264", "-profile:v", "baseline", "-level:v", "4.0", "-g", "48", "-tune", "zerolatency",
+            // "-c:v", "h264_omx", "-profile:v", "baseline",
+            // "-c:v", "h264_v4l2m2m",
+            "-pix_fmt", "yuv420p",
+            "-map", "0:v:0",
+            "-map", "1:a:0",
+            "-g", "60",
+            "-c:a", "libopus", "-ab", "128k", "-ac", "2", "-ar", "48000", "-strict", "-2",
+            "-f", "tee", &tee_fmt,
+        ])
+        .spawn()?;
+
+    let data_producer_available = ws_client.subscribe::<signal_query::DataProducerAvailable>(
+        signal_query::data_producer_available::Variables,
+    );
+    let mut data_producer_available_stream = data_producer_available.execute();
+    tokio::spawn(async move {
+        while let Some(Ok(response)) = data_producer_available_stream.next().await {
+            log::debug!(
+                "data producer available: {}",
+                response.data.unwrap().data_producer_available
+            )
+        }
+    });
+
+    println!("Press Enter to end session...");
+    let _ = std::io::stdin().read(&mut [0u8]).unwrap();
+
+    ffmpeg.kill()?;
 
     Ok(())
 }

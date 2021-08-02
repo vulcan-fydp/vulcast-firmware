@@ -1,5 +1,5 @@
-mutation LogInAsVulcast($vulcastGuid : String!, $secret : String!) {
-  logInAsVulcast(vulcastGuid: $vulcastGuid, secret: $secret) {
+mutation LogInAsVulcast($vulcastId : String!, $secret : String!) {
+  logInAsVulcast(vulcastId: $vulcastId, secret: $secret) {
     __typename
     ... on VulcastAuthentication {
       vulcastAccessToken

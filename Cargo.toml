@@ -21,8 +21,9 @@ maintainer-scripts = "debian/scripts"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-mediasoup = "0.7"
+mediasoup = { version = "0.8", git = "https://github.com/netdex/mediasoup", branch = "rust-async-trait-send" }
 
+once_cell = "1.8.0"
 log = "0.4.14"
 env_logger = "0.8.3"
 serde = { version = "1.0.124", features = ["derive"] }
@@ -36,23 +37,22 @@ clap = "3.0.0-beta.2"
 bimap = "0.6.1"
 derive_more = "0.99.0"
 
-tokio = { version = "1.0.2", features = ["macros", "rt-multi-thread", "sync"] }
-tokio-stream = { version = "0.1.5", features = ["sync"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
+tokio-stream = { version = "0.1", features = ["sync"] }
 futures = "0.3"
 async-trait = "0.1.48"
 
-graphql_client = "0.9"
+graphql_client = "0.10"
 
 native-tls = "0.2"
 http = "0.2"
 tokio-tungstenite = { version = "0.15", features = ["native-tls"] }
 reqwest = { version = "0.11.4", features = ["json"] }
 
-graphql-ws = { git = "ssh://git@github.com/Netdex/graphql-ws.git" }
+graphql-ws = { git = "ssh://git@github.com/Netdex/graphql-ws.git", version="0.3.2" }
 
 [build-dependencies]
 built = "0.5"
-# TODO change this branch
-schema = { git = "ssh://git@github.com/vulcan-fydp/schema.git", branch = "rust_include" }
+schema = { git = "ssh://git@github.com/vulcan-fydp/schema.git", version="0.0.25" }
 
 [dev-dependencies]
