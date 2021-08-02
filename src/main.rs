@@ -249,8 +249,8 @@ async fn main() -> Result<()> {
         .produce_plain;
     log::debug!("video producer: {:?}", video_producer_id);
 
-    println!("Press Enter to start stream...");
-    let _ = std::io::stdin().read(&mut [0u8]).unwrap();
+    // println!("Press Enter to start stream...");
+    // let _ = std::io::stdin().read(&mut [0u8]).unwrap();
 
     let tee_fmt = format!(
         "[select=a:f=rtp:ssrc=11111111:payload_type=101]rtp://{}:{}|\
@@ -266,8 +266,8 @@ async fn main() -> Result<()> {
     #[rustfmt::skip]
     // let mut ffmpeg = Command::new("/home/pi/ffmpeg-4.4-armhf-static/ffmpeg")
     let mut ffmpeg = Command::new("ffmpeg")
-        // .stdout(Stdio::piped())
-        // .stderr(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
         .args(&[
             "-fflags", "+genpts",
             "-f", "v4l2", "-thread_queue_size", "1024", "-input_format", "mjpeg",
