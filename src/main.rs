@@ -24,6 +24,7 @@ use mediasoup::rtp_parameters::{
 use native_tls::TlsConnector;
 use reqwest;
 use serde::Serialize;
+use std::env;
 use std::process::{Command, Stdio};
 use tokio::net::TcpStream;
 use tokio_tungstenite::Connector;
@@ -70,6 +71,27 @@ async fn login(conf: &Ini, client: &reqwest::Client) -> Result<String> {
     }
 }
 
+fn write_relay_assignment(hostname: &str, token: &str) -> Result<()> {
+    let mut assigned = Ini::new();
+    assigned
+        .with_section(Some("relay"))
+        .set("hostname", hostname)
+        .set("token", token);
+    assigned.write_to_file(env::var("HOME").unwrap() + "/.vulcast/assigned_relay")?;
+    Ok(())
+}
+
+fn read_relay_assignment() -> Result<(String, String)> {
+    let relay_file = Ini::load_from_file(env::var("HOME").unwrap() + "/.vulcast/assigned_relay")?;
+    let host = relay_file
+        .get_from(Some("relay"), "hostname")
+        .ok_or(anyhow!("Could not load relay hostname from file"))?;
+    let token = relay_file
+        .get_from(Some("relay"), "token")
+        .ok_or(anyhow!("Could not load relay token from file"))?;
+    Ok((host.to_owned(), token.to_owned()))
+}
+
 async fn assign_relay(
     conf: &Ini,
     client: &reqwest::Client,
@@ -103,6 +125,8 @@ async fn assign_relay(
         .ok_or(anyhow!("Request returned no data"))?;
     match response_data.assign_vulcast_to_relay {
         RelayAssignment(assignment) => {
+            let _ =
+                write_relay_assignment(&assignment.relay.host_name, &assignment.relay_access_token);
             Ok((assignment.relay.host_name, assignment.relay_access_token))
         }
         AuthenticationError(error) => Err(anyhow!("Authentication error: {}", error.message)),
@@ -117,11 +141,13 @@ async fn main() -> Result<()> {
     env_logger::init_from_env(env_logger::Env::default());
 
     log::info!("Loading config from ~/.vulcast/vulcast.conf");
-    let conf = Ini::load_from_file("/home/pi/.vulcast/vulcast.conf")?;
+    let conf = Ini::load_from_file(env::var("HOME").unwrap() + "/.vulcast/vulcast.conf")?;
     let client = reqwest::Client::new();
 
     let access_token = login(&conf, &client).await?;
-    let (relay_host, relay_token) = assign_relay(&conf, &client, &access_token).await?;
+    let (relay_host, relay_token) = assign_relay(&conf, &client, &access_token)
+        .await
+        .or(read_relay_assignment())?;
 
     log::info!("Assigned to relay {:?}", relay_host);
 
@@ -223,6 +249,9 @@ async fn main() -> Result<()> {
         .produce_plain;
     log::debug!("video producer: {:?}", video_producer_id);
 
+    println!("Press Enter to start stream...");
+    let _ = std::io::stdin().read(&mut [0u8]).unwrap();
+
     let tee_fmt = format!(
         "[select=a:f=rtp:ssrc=11111111:payload_type=101]rtp://{}:{}|\
          [select=v:f=rtp:ssrc=22222222:payload_type=102]rtp://{}:{}",
@@ -237,21 +266,23 @@ async fn main() -> Result<()> {
     #[rustfmt::skip]
     // let mut ffmpeg = Command::new("/home/pi/ffmpeg-4.4-armhf-static/ffmpeg")
     let mut ffmpeg = Command::new("ffmpeg")
-        .stdout(Stdio::piped())
+        // .stdout(Stdio::piped())
         .stderr(Stdio::piped())
         .args(&[
-            "-f", "v4l2", "-thread_queue_size", "1024", "-input_format", "mjpeg",
-            "-video_size", "1280x720", "-framerate", "30", "-i", "/dev/video0",
-            "-f", "alsa", "-thread_queue_size", "1024", "-ac", "2", "-i", "hw:CARD=MS2109,DEV=0",
+            "-fflags", "+genpts",
+            // "-f", "v4l2", "-thread_queue_size", "1024", "-input_format", "mjpeg",
+            // "-video_size", "1280x720", "-framerate", "30", "-i", "/dev/video0",
+            // "-f", "alsa", "-thread_queue_size", "1024", "-ac", "2", "-i", "hw:CARD=MS2109,DEV=0",
+            "-re", "-stream_loop", "-1", "-i", "out.mp4",
             // "-c:v", "copy",
-            // "-c:v", "libx264", "-profile:v", "baseline", "-level:v", "4.0", "-g", "48", "-tune", "zerolatency",
+            "-c:v", "libx264", "-preset", "ultrafast", "-maxrate", "3000k", "-bufsize", "3000k", "-g", "48", "-tune", "zerolatency",
             // "-c:v", "h264_v4l2m2m",
-            "-c:v", "h264_omx", "-profile:v", "baseline", "-bsf:v", "h264_mp4toannexb,dump_extra",
+            // "-c:v", "h264_omx", "-profile:v", "baseline", "-bsf:v", "h264_mp4toannexb,dump_extra", "-g", "60",
             "-pix_fmt", "yuv420p",
             "-map", "0:v:0",
-            "-map", "1:a:0",
-            "-g", "60",
-            "-c:a", "libopus", "-ab", "128k", "-ac", "2", "-ar", "48000", "-strict", "-2",
+            // "-map", "1:a:0",
+            "-map", "0:a:0",
+            "-c:a", "libopus", "-ab", "128k", "-ac", "2", "-ar", "48000",
             "-f", "tee", &tee_fmt,
         ])
         .spawn()?;
