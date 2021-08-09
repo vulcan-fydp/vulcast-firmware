@@ -1,5 +1,5 @@
 use std::io::Read;
-use std::num::{NonZeroU32, NonZeroU8};
+use std::sync::Arc;
 
 mod graphql;
 use graphql::backend_query;
@@ -17,17 +17,13 @@ use graphql_client::{GraphQLQuery, Response};
 use graphql_ws::GraphQLWebSocket;
 use http::Uri;
 use ini::Ini;
-use mediasoup::rtp_parameters::{
-    MediaKind, MimeTypeAudio, MimeTypeVideo, RtpCodecParameters, RtpCodecParametersParameters,
-    RtpEncodingParameters, RtpParameters,
-};
-use native_tls::TlsConnector;
-use reqwest;
 use serde::Serialize;
+use serde_json::json;
 use std::env;
 use std::process::{Command, Stdio};
 use tokio::net::TcpStream;
 use tokio_tungstenite::Connector;
+use vulcast_rtc::types::*;
 
 #[derive(Serialize)]
 struct SessionToken {
@@ -156,7 +152,7 @@ async fn main() -> Result<()> {
         .expect("Signal port not specified")
         .parse()
         .expect("Signal port could not be parsed as an int");
-    let relay_uri: Uri = format!("ws://{}:{}", relay_host, port).parse().unwrap();
+    let relay_uri: Uri = format!("wss://{}:{}", relay_host, port).parse().unwrap();
 
     log::info!("Connecting to relay at {:?}", relay_uri);
 
@@ -166,13 +162,31 @@ async fn main() -> Result<()> {
         .header("Sec-WebSocket-Protocol", "graphql-ws")
         .body(())?;
 
-    let _connector = TlsConnector::builder()
-        .danger_accept_invalid_hostnames(true)
-        .danger_accept_invalid_certs(true)
-        .build()?;
-    let (socket, _response) =
-        tokio_tungstenite::client_async_tls_with_config(req, stream, None, Some(Connector::Plain))
-            .await?;
+    // remove this later
+    struct PromiscuousServerVerifier;
+    impl rustls::ServerCertVerifier for PromiscuousServerVerifier {
+        fn verify_server_cert(
+            &self,
+            _roots: &rustls::RootCertStore,
+            _presented_certs: &[rustls::Certificate],
+            _dns_name: webpki::DNSNameRef,
+            _ocsp_response: &[u8],
+        ) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
+            // here be dragons
+            Ok(rustls::ServerCertVerified::assertion())
+        }
+    }
+    let mut client_config = rustls::ClientConfig::default();
+    client_config
+        .dangerous()
+        .set_certificate_verifier(Arc::new(PromiscuousServerVerifier));
+    let (socket, _response) = tokio_tungstenite::client_async_tls_with_config(
+        req,
+        stream,
+        None,
+        Some(Connector::Rustls(Arc::new(client_config))),
+    )
+    .await?;
 
     let ws_client = GraphQLWebSocket::new();
     ws_client.connect(
@@ -202,21 +216,21 @@ async fn main() -> Result<()> {
         .query_unchecked::<signal_query::ProducePlain>(signal_query::produce_plain::Variables {
             transport_id: audio_transport_id,
             kind: MediaKind::Audio,
-            rtp_parameters: RtpParameters {
-                codecs: vec![RtpCodecParameters::Audio {
-                    mime_type: MimeTypeAudio::Opus,
-                    payload_type: 101,
-                    clock_rate: NonZeroU32::new(48000).unwrap(),
-                    channels: NonZeroU8::new(2).unwrap(),
-                    parameters: RtpCodecParametersParameters::from([("sprop-stereo", 1u32.into())]),
-                    rtcp_feedback: vec![],
+            rtp_parameters: RtpParameters::from(json!({
+                "codecs": [{
+                    "mimeType": "audio/opus",
+                    "payloadType": 101,
+                    "clockRate": 48000,
+                    "channels": 2,
+                    "parameters": {"sprop-stereo": 1},
+                    "rtcpFeedback": []
                 }],
-                encodings: vec![RtpEncodingParameters {
-                    ssrc: Some(11111111),
-                    ..RtpEncodingParameters::default()
+                "headerExtensions": [],
+                "encodings": [{
+                    "ssrc": 11111111,
                 }],
-                ..RtpParameters::default()
-            },
+                "rtcp": {"reducedSize": true}
+            })),
         })
         .await
         .produce_plain;
@@ -226,24 +240,24 @@ async fn main() -> Result<()> {
         .query_unchecked::<signal_query::ProducePlain>(signal_query::produce_plain::Variables {
             transport_id: video_transport_id,
             kind: MediaKind::Video,
-            rtp_parameters: RtpParameters {
-                codecs: vec![RtpCodecParameters::Video {
-                    mime_type: MimeTypeVideo::H264,
-                    payload_type: 102,
-                    clock_rate: NonZeroU32::new(90000).unwrap(),
-                    parameters: RtpCodecParametersParameters::from([
-                        ("packetization-mode", 1u32.into()),
-                        ("level-asymmetry-allowed", 1u32.into()),
-                        ("profile-level-id", "42e01f".into()),
-                    ]),
-                    rtcp_feedback: vec![],
+            rtp_parameters: RtpParameters::from(json!({
+                "codecs": [{
+                    "mimeType": "video/H264",
+                    "payloadType": 102,
+                    "clockRate": 90000,
+                    "parameters": {
+                        "packetization-mode": 1,
+                        "level-asymmetry-allowed": 1,
+                        "profile-level-id": "42e01f"
+                    },
+                    "rtcpFeedback": []
                 }],
-                encodings: vec![RtpEncodingParameters {
-                    ssrc: Some(22222222),
-                    ..RtpEncodingParameters::default()
+                "headerExtensions": [],
+                "encodings": [{
+                    "ssrc": 22222222,
                 }],
-                ..RtpParameters::default()
-            },
+                "rtcp": {"reducedSize": true}
+            }))
         })
         .await
         .produce_plain;
@@ -294,7 +308,7 @@ async fn main() -> Result<()> {
     tokio::spawn(async move {
         while let Some(Ok(response)) = data_producer_available_stream.next().await {
             log::debug!(
-                "data producer available: {}",
+                "data producer available: {:?}",
                 response.data.unwrap().data_producer_available
             )
         }

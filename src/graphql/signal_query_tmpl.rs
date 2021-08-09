@@ -1,10 +1,8 @@
 use serde::{Deserialize, Serialize};
 
 use graphql_client::GraphQLQuery;
-use mediasoup::{
-    data_producer::DataProducerId, data_structures::TransportTuple, producer::ProducerId,
-    rtp_parameters::MediaKind, rtp_parameters::RtpParameters, transport::TransportId,
-};
+use std::net::IpAddr;
+use vulcast_rtc::types::*;
 
 #[derive(GraphQLQuery)]
 #[graphql(
@@ -29,6 +27,47 @@ pub struct CreatePlainTransport;
     response_derives = "Debug"
 )]
 pub struct ProducePlain;
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(untagged)]
+pub enum TransportTuple {
+    #[serde(rename_all = "camelCase")]
+    LocalOnly {
+        local_ip: IpAddr,
+        local_port: u16,
+        protocol: TransportProtocol,
+    },
+    #[serde(rename_all = "camelCase")]
+    WithRemote {
+        local_ip: IpAddr,
+        local_port: u16,
+        remote_ip: IpAddr,
+        remote_port: u16,
+        protocol: TransportProtocol,
+    },
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TransportProtocol {
+    Tcp,
+    Udp,
+}
+
+impl TransportTuple {
+    pub fn local_ip(&self) -> IpAddr {
+        match self {
+            TransportTuple::LocalOnly { local_ip, .. }
+            | TransportTuple::WithRemote { local_ip, .. } => *local_ip,
+        }
+    }
+    pub fn local_port(&self) -> u16 {
+        match self {
+            TransportTuple::LocalOnly { local_port, .. }
+            | TransportTuple::WithRemote { local_port, .. } => *local_port,
+        }
+    }
+}
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(rename_all = "camelCase")]
