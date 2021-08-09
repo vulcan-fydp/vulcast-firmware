@@ -1217,8 +1217,8 @@ dependencies = [
 
 [[package]]
 name = "schema"
-version = "0.0.27"
-source = "git+https://github.com/vulcan-fydp/schema.git#ce5436198a26fd41b778ffbd6823e33e9d302c71"
+version = "0.0.29"
+source = "git+https://github.com/vulcan-fydp/schema.git#6e39f90850311ec212c95c046aeef10623e81c95"
 
 [[package]]
 name = "sct"

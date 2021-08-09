@@ -1,7 +1,6 @@
 use std::io::Read;
 use std::sync::Arc;
 
-mod graphql;
 use graphql::backend_query;
 use graphql::signal_query;
 
@@ -23,7 +22,13 @@ use std::env;
 use std::process::{Command, Stdio};
 use tokio::net::TcpStream;
 use tokio_tungstenite::Connector;
+use vulcast_rtc::broadcaster::Broadcaster;
 use vulcast_rtc::types::*;
+
+use crate::graphql_signaller::GraphQLSignaller;
+
+mod graphql;
+mod graphql_signaller;
 
 #[derive(Serialize)]
 struct SessionToken {
@@ -257,7 +262,7 @@ async fn main() -> Result<()> {
                     "ssrc": 22222222,
                 }],
                 "rtcp": {"reducedSize": true}
-            }))
+            })),
         })
         .await
         .produce_plain;
@@ -301,16 +306,24 @@ async fn main() -> Result<()> {
         ])
         .spawn()?;
 
+    let signaller = GraphQLSignaller::new(ws_client.clone());
+    let broadcaster = Broadcaster::new(Arc::new(signaller));
+
     let data_producer_available = ws_client.subscribe::<signal_query::DataProducerAvailable>(
         signal_query::data_producer_available::Variables,
     );
     let mut data_producer_available_stream = data_producer_available.execute();
     tokio::spawn(async move {
         while let Some(Ok(response)) = data_producer_available_stream.next().await {
-            log::debug!(
-                "data producer available: {:?}",
-                response.data.unwrap().data_producer_available
-            )
+            let data_producer_id = response.data.unwrap().data_producer_available;
+            log::debug!("data producer available: {:?}", &data_producer_id);
+            let mut data_consumer = broadcaster.consume_data(data_producer_id.clone()).await;
+            tokio::spawn(async move {
+                while let Some(message) = data_consumer.next().await {
+                    log::debug!("{:?}", message);
+                }
+                log::debug!("data producer is {:?} is gone", data_producer_id);
+            });
         }
     });
 

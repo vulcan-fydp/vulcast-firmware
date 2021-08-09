@@ -28,6 +28,48 @@ pub struct CreatePlainTransport;
 )]
 pub struct ProducePlain;
 
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "$schema_path$",
+    query_path = "src/graphql/query/signal_query.gql",
+)]
+pub struct ServerRtpCapabilities;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "$schema_path$",
+    query_path = "src/graphql/query/signal_query.gql",
+)]
+pub struct CreateWebrtcTransport;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "$schema_path$",
+    query_path = "src/graphql/query/signal_query.gql",
+)]
+pub struct ClientRtpCapabilities;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "$schema_path$",
+    query_path = "src/graphql/query/signal_query.gql",
+)]
+pub struct Produce;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "$schema_path$",
+    query_path = "src/graphql/query/signal_query.gql",
+)]
+pub struct ConnectWebrtcTransport;
+
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "$schema_path$",
+    query_path = "src/graphql/query/signal_query.gql",
+)]
+pub struct ConsumeData;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum TransportTuple {
