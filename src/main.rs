@@ -306,24 +306,31 @@ async fn main() -> Result<()> {
         ])
         .spawn()?;
 
-    let signaller = GraphQLSignaller::new(ws_client.clone());
-    let broadcaster = Broadcaster::new(Arc::new(signaller));
+    let signaller = Arc::new(GraphQLSignaller::new(ws_client.clone()));
+    let broadcaster = Broadcaster::new(signaller.clone());
 
     let data_producer_available = ws_client.subscribe::<signal_query::DataProducerAvailable>(
         signal_query::data_producer_available::Variables,
     );
     let mut data_producer_available_stream = data_producer_available.execute();
     tokio::spawn(async move {
-        while let Some(Ok(response)) = data_producer_available_stream.next().await {
-            let data_producer_id = response.data.unwrap().data_producer_available;
-            log::debug!("data producer available: {:?}", &data_producer_id);
-            let mut data_consumer = broadcaster.consume_data(data_producer_id.clone()).await;
-            tokio::spawn(async move {
-                while let Some(message) = data_consumer.next().await {
-                    log::debug!("{:?}", message);
-                }
-                log::debug!("data producer is {:?} is gone", data_producer_id);
-            });
+        let mut shutdown = signaller.shutdown();
+        loop {
+            tokio::select! {
+                Some(Ok(response)) = data_producer_available_stream.next() => {
+                    let data_producer_id = response.data.unwrap().data_producer_available;
+                    log::debug!("data producer available: {:?}", &data_producer_id);
+                    let mut data_consumer = broadcaster.consume_data(data_producer_id.clone()).await;
+                    tokio::spawn(async move {
+                        while let Some(message) = data_consumer.next().await {
+                            log::debug!("{:?}", message);
+                        }
+                        log::debug!("data producer {:?} is gone", data_producer_id);
+                    });
+                },
+                _ = shutdown.recv() => {break},
+                else => {break}
+            }
         }
     });
 
