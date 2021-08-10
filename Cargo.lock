@@ -269,8 +269,8 @@ dependencies = [
 
 [[package]]
 name = "controller-emulator"
-version = "0.1.0"
-source = "git+ssh://git@github.com/vulcan-fydp/controller-emulator#b44772d659024246acfbb072dcb04c64be53b48d"
+version = "0.1.1"
+source = "git+ssh://git@github.com/vulcan-fydp/controller-emulator#61079c840dc627fe646bcd76ac6e50f2a2645e02"
 dependencies = [
  "bitvec",
 ]
@@ -687,9 +687,9 @@ dependencies = [
 
 [[package]]
 name = "http-body"
-version = "0.4.2"
+version = "0.4.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "60daa14be0e0786db0f03a9e57cb404c9d756eed2b6c62b9ea98ec5743ec75a9"
+checksum = "399c583b2979440c60be0821a6199eca73bc3c8dcd9d070d75ac726e2c6186e5"
 dependencies = [
  "bytes",
  "http",
@@ -818,9 +818,9 @@ checksum = "830d08ce1d1d941e6b30645f1a0eb5643013d835ce3779a5fc208261dbe10f55"
 
 [[package]]
 name = "libc"
-version = "0.2.98"
+version = "0.2.99"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "320cfe77175da3a483efed4bc0adc1968ca050b098ce4f2f1c13a56626128790"
+checksum = "a7f823d141fe0a24df1e23b4af4e3c7ba9e5966ec514ea068c93024aa7deb765"
 
 [[package]]
 name = "libloading"
@@ -1249,8 +1249,8 @@ dependencies = [
 
 [[package]]
 name = "schema"
-version = "0.0.29"
-source = "git+ssh://git@github.com/vulcan-fydp/schema.git#6e39f90850311ec212c95c046aeef10623e81c95"
+version = "0.0.30"
+source = "git+ssh://git@github.com/vulcan-fydp/schema.git#9f4ea7ff74fc7dff90a074778148bce9765d347d"
 
 [[package]]
 name = "sct"
@@ -1376,9 +1376,9 @@ checksum = "7fdf1b9db47230893d76faad238fd6097fd6d6a9245cd7a4d90dbd639536bbd2"
 
 [[package]]
 name = "slab"
-version = "0.4.3"
+version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f173ac3d1a7e3b28003f40de0b5ce7fe2710f9b9dc3fc38664cebee46b3b6527"
+checksum = "c307a32c1c5c437f38c7fd45d753050587732ba8628319fbdf12a7e289ccc590"
 
 [[package]]
 name = "socket2"
@@ -1769,7 +1769,7 @@ dependencies = [
 [[package]]
 name = "vulcast-rtc"
 version = "0.1.0"
-source = "git+ssh://git@github.com/vulcan-fydp/vulcast-rtc#4474148a8b169bc876a152eee9237969b62461be"
+source = "git+ssh://git@github.com/vulcan-fydp/vulcast-rtc#43ff9ea324a2b4babe0b31a958c5556d0ce9e67e"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -1785,7 +1785,7 @@ dependencies = [
 [[package]]
 name = "vulcast-rtc-sys"
 version = "0.1.0"
-source = "git+ssh://git@github.com/vulcan-fydp/vulcast-rtc#4474148a8b169bc876a152eee9237969b62461be"
+source = "git+ssh://git@github.com/vulcan-fydp/vulcast-rtc#43ff9ea324a2b4babe0b31a958c5556d0ce9e67e"
 dependencies = [
  "bindgen",
  "cmake",

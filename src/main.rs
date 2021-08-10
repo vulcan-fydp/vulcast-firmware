@@ -11,10 +11,8 @@ use backend_query::assign_vulcast_to_relay::AssignVulcastToRelayAssignVulcastToR
 use backend_query::log_in_as_vulcast::LogInAsVulcastLogInAsVulcast::{
     AuthenticationError as LoginAuthenticationError, VulcastAuthentication,
 };
-use controller_emulator::controller::ns_procon;
-use controller_emulator::controller::Controller;
-use controller_emulator::usb_gadget;
-use controller_emulator::usb_gadget::ns_procon::ns_procons;
+use controllers::Controllers;
+use controllers::NsProcons;
 use data_streamer::{GStreamer, Streamer};
 use futures::StreamExt;
 use graphql_client::{GraphQLQuery, Response};
@@ -24,8 +22,6 @@ use ini::Ini;
 use serde::Serialize;
 use serde_json::json;
 use std::env;
-use std::thread::sleep;
-use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio_tungstenite::Connector;
 use vulcast_rtc::broadcaster::Broadcaster;
@@ -33,6 +29,7 @@ use vulcast_rtc::types::*;
 
 use crate::graphql_signaller::GraphQLSignaller;
 
+mod controllers;
 mod data_streamer;
 mod graphql;
 mod graphql_signaller;
@@ -149,27 +146,8 @@ async fn main() -> Result<()> {
     env_logger::init_from_env(env_logger::Env::default());
 
     log::info!("Setting up controller emulator...");
-    let procons = ns_procons();
-    usb_gadget::activate("procons").expect("Could not activate");
-
-    sleep(Duration::from_secs(1));
-
-    let mut procon_1 = ns_procon::NsProcon::create("/dev/hidg0");
-    procon_1
-        .start_comms()
-        .expect("Couldn't start communicating");
-    let mut procon_2 = ns_procon::NsProcon::create("/dev/hidg1");
-    procon_2
-        .start_comms()
-        .expect("Couldn't start communicating");
-    let mut procon_3 = ns_procon::NsProcon::create("/dev/hidg2");
-    procon_3
-        .start_comms()
-        .expect("Couldn't start communicating");
-    let mut procon_4 = ns_procon::NsProcon::create("/dev/hidg3");
-    procon_4
-        .start_comms()
-        .expect("Couldn't start communicating");
+    let mut controllers = NsProcons::new("procons");
+    controllers.initialize()?;
 
     log::info!("Loading config from ~/.vulcast/vulcast.conf");
     let conf = Ini::load_from_file(env::var("HOME").unwrap() + "/.vulcast/vulcast.conf")?;
