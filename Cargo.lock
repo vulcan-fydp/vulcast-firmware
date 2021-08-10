@@ -545,7 +545,7 @@ dependencies = [
 [[package]]
 name = "graphql-ws"
 version = "0.3.2"
-source = "git+https://github.com/Netdex/graphql-ws.git#c25c981cf9b2c394f291818b1008f04e065440cc"
+source = "git+ssh://git@github.com/Netdex/graphql-ws.git#c25c981cf9b2c394f291818b1008f04e065440cc"
 dependencies = [
  "futures",
  "graphql_client",
@@ -1218,7 +1218,7 @@ dependencies = [
 [[package]]
 name = "schema"
 version = "0.0.29"
-source = "git+https://github.com/vulcan-fydp/schema.git#6e39f90850311ec212c95c046aeef10623e81c95"
+source = "git+ssh://git@github.com/vulcan-fydp/schema.git#6e39f90850311ec212c95c046aeef10623e81c95"
 
 [[package]]
 name = "sct"
@@ -1730,7 +1730,7 @@ dependencies = [
 [[package]]
 name = "vulcast-rtc"
 version = "0.1.0"
-source = "git+https://github.com/vulcan-fydp/vulcast-rtc#4474148a8b169bc876a152eee9237969b62461be"
+source = "git+ssh://git@github.com/vulcan-fydp/vulcast-rtc#4474148a8b169bc876a152eee9237969b62461be"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -1746,7 +1746,7 @@ dependencies = [
 [[package]]
 name = "vulcast-rtc-sys"
 version = "0.1.0"
-source = "git+https://github.com/vulcan-fydp/vulcast-rtc#4474148a8b169bc876a152eee9237969b62461be"
+source = "git+ssh://git@github.com/vulcan-fydp/vulcast-rtc#4474148a8b169bc876a152eee9237969b62461be"
 dependencies = [
  "bindgen",
  "cmake",
