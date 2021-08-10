@@ -11,6 +11,11 @@ use backend_query::assign_vulcast_to_relay::AssignVulcastToRelayAssignVulcastToR
 use backend_query::log_in_as_vulcast::LogInAsVulcastLogInAsVulcast::{
     AuthenticationError as LoginAuthenticationError, VulcastAuthentication,
 };
+use controller_emulator::controller::ns_procon;
+use controller_emulator::controller::Controller;
+use controller_emulator::usb_gadget;
+use controller_emulator::usb_gadget::ns_procon::ns_procons;
+use data_streamer::{GStreamer, Streamer};
 use futures::StreamExt;
 use graphql_client::{GraphQLQuery, Response};
 use graphql_ws::GraphQLWebSocket;
@@ -19,7 +24,8 @@ use ini::Ini;
 use serde::Serialize;
 use serde_json::json;
 use std::env;
-use std::process::{Child, Command, Stdio};
+use std::thread::sleep;
+use std::time::Duration;
 use tokio::net::TcpStream;
 use tokio_tungstenite::Connector;
 use vulcast_rtc::broadcaster::Broadcaster;
@@ -27,6 +33,7 @@ use vulcast_rtc::types::*;
 
 use crate::graphql_signaller::GraphQLSignaller;
 
+mod data_streamer;
 mod graphql;
 mod graphql_signaller;
 
@@ -137,90 +144,32 @@ async fn assign_relay(
     }
 }
 
-fn _stream_ffmpeg(
-    audio_transport_options: signal_query::PlainTransportOptions,
-    video_transport_options: signal_query::PlainTransportOptions,
-) -> Result<Child> {
-    let tee_fmt = format!(
-        "[select=a:f=rtp:ssrc=11111111:payload_type=101]rtp://{}:{}|\
-         [select=v:f=rtp:ssrc=22222222:payload_type=102]rtp://{}:{}",
-        audio_transport_options.tuple.local_ip(),
-        audio_transport_options.tuple.local_port(),
-        video_transport_options.tuple.local_ip(),
-        video_transport_options.tuple.local_port()
-    );
-
-    #[rustfmt::skip]
-    let ffmpeg = Command::new("ffmpeg")
-        // .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .args(&[
-            "-fflags", "+genpts",
-            "-f", "v4l2", "-thread_queue_size", "1024", "-input_format", "mjpeg",
-            "-video_size", "640x480", "-framerate", "30", "-i", "/dev/video0",
-            "-f", "alsa", "-thread_queue_size", "1024", "-ac", "2", "-i", "hw:CARD=MS2109,DEV=0",
-            // "-re", "-stream_loop", "-1", "-i", "esker.mp4",
-            // "-c:v", "copy",
-            "-c:v", "libx264", "-preset", "ultrafast", "-maxrate", "300k", "-bufsize", "300k", "-g", "60", "-tune", "zerolatency",
-            // "-c:v", "h264_v4l2m2m", "-g", "48",
-            // "-c:v", "h264_omx", "-profile:v", "baseline", "-g", "48",
-            "-bsf:v", "h264_mp4toannexb,dump_extra",
-            "-pix_fmt", "yuv420p",
-            "-map", "0:v:0",
-            "-map", "1:a:0",
-            // "-map", "0:a:0",
-            "-c:a", "libopus", "-ab", "256k", "-ac", "2", "-ar", "48000",
-            "-f", "tee", &tee_fmt,
-        ])
-        .spawn()?;
-    Ok(ffmpeg)
-}
-
-fn stream_gstreamer(
-    audio_transport_options: signal_query::PlainTransportOptions,
-    video_transport_options: signal_query::PlainTransportOptions,
-) -> Result<Child> {
-    let video_ip = format!("host={}", video_transport_options.tuple.local_ip());
-    let video_port = format!("port={}", video_transport_options.tuple.local_port());
-    let audio_ip = format!("host={}", audio_transport_options.tuple.local_ip());
-    let audio_port = format!("port={}", audio_transport_options.tuple.local_port());
-    #[rustfmt::skip]
-    let gstreamer = Command::new("gst-launch-1.0")
-        .args(&[
-            "rtpbin", "name=rtpbin",
-            "v4l2src", "device=/dev/video0",
-            "!", "image/jpeg,framerate=30/1,width=640,height=480",
-            "!", "queue",
-            "!", "decodebin",
-            "!", "videoconvert",
-            "!", "vp8enc", "end-usage=cbr", "keyframe-max-dist=60", "target-bitrate=30000", "deadline=1", "cpu-used=4",
-            "!", "rtpvp8pay", "pt=102", "ssrc=22222222", "picture-id-mode=2",
-            // "!", "omxh264enc", "control-rate=constant", "target-bitrate=30000",
-            //      "b-frames=0", "interval-intraframes=60", "inline-header=true",
-            // "!", "video/x-h264,profile=baseline",
-            // "!", "h264parse",
-            // "!", "rtph264pay", "pt=102", "ssrc=22222222",
-            "!", "rtpbin.send_rtp_sink_0",
-            "rtpbin.send_rtp_src_0", "!", "udpsink", &video_ip, &video_port, "bind-port=50000",
-            "rtpbin.send_rtcp_src_0", "!", "udpsink", &video_ip, &video_port, "bind-port=50000", "sync=false", "async=false",
-            "alsasrc", "device=\"hw:CARD=MS2109,DEV=0\"",
-            "!", "queue",
-            "!", "decodebin",
-            "!", "audioresample",
-            "!", "audioconvert",
-            "!", "opusenc", "inband-fec=true",
-            "!", "rtpopuspay", "pt=101", "ssrc=11111111",
-            "!", "rtpbin.send_rtp_sink_1",
-            "rtpbin.send_rtp_src_1", "!", "udpsink", &audio_ip, &audio_port, "bind-port=50001",
-            "rtpbin.send_rtcp_src_1", "!", "udpsink", &audio_ip, &audio_port, "bind-port=50001", "sync=false", "async=false"
-        ])
-        .spawn()?;
-    Ok(gstreamer)
-}
-
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init_from_env(env_logger::Env::default());
+
+    log::info!("Setting up controller emulator...");
+    let procons = ns_procons();
+    usb_gadget::activate("procons").expect("Could not activate");
+
+    sleep(Duration::from_secs(1));
+
+    let mut procon_1 = ns_procon::NsProcon::create("/dev/hidg0");
+    procon_1
+        .start_comms()
+        .expect("Couldn't start communicating");
+    let mut procon_2 = ns_procon::NsProcon::create("/dev/hidg1");
+    procon_2
+        .start_comms()
+        .expect("Couldn't start communicating");
+    let mut procon_3 = ns_procon::NsProcon::create("/dev/hidg2");
+    procon_3
+        .start_comms()
+        .expect("Couldn't start communicating");
+    let mut procon_4 = ns_procon::NsProcon::create("/dev/hidg3");
+    procon_4
+        .start_comms()
+        .expect("Couldn't start communicating");
 
     log::info!("Loading config from ~/.vulcast/vulcast.conf");
     let conf = Ini::load_from_file(env::var("HOME").unwrap() + "/.vulcast/vulcast.conf")?;
@@ -368,7 +317,8 @@ async fn main() -> Result<()> {
     // println!("Press Enter to start stream...");
     // let _ = std::io::stdin().read(&mut [0u8]).unwrap();
 
-    let mut stream_process = stream_gstreamer(audio_transport_options, video_transport_options)?;
+    let gstreamer = GStreamer::new();
+    let mut stream_process = gstreamer.stream(audio_transport_options, video_transport_options)?;
 
     let signaller = Arc::new(GraphQLSignaller::new(ws_client.clone()));
     let broadcaster = Broadcaster::new(signaller.clone());
