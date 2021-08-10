@@ -9,3 +9,27 @@ mutation CreatePlainTransport {
 mutation ProducePlain($transportId: TransportId!, $kind: MediaKind!, $rtpParameters: RtpParameters!) {
   producePlain(transportId: $transportId, kind: $kind, rtpParameters: $rtpParameters)
 }
+
+query ServerRtpCapabilities {
+	serverRtpCapabilities
+}
+
+mutation CreateWebrtcTransport {
+    createWebrtcTransport
+}
+
+mutation ClientRtpCapabilities($rtpCapabilities: RtpCapabilities!) {
+	rtpCapabilities(rtpCapabilities: $rtpCapabilities)
+}
+
+mutation Produce($transportId: TransportId!, $kind: MediaKind!, $rtpParameters: RtpParameters!) {
+	produce(transportId: $transportId, kind: $kind, rtpParameters: $rtpParameters)
+}
+
+mutation ConnectWebrtcTransport($transportId: TransportId!, $dtlsParameters: DtlsParameters!) {
+	connectWebrtcTransport(transportId: $transportId, dtlsParameters: $dtlsParameters)
+}
+
+mutation ConsumeData($transportId: TransportId!, $dataProducerId: DataProducerId!) {
+	consumeData(transportId: $transportId, dataProducerId: $dataProducerId)
+}
