@@ -1488,9 +1488,9 @@ checksum = "cda74da7e1a664f795bb1f8a87ec406fb89a02522cf6e50620d016add6dbbf5c"
 
 [[package]]
 name = "tokio"
-version = "1.9.0"
+version = "1.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b7b349f11a7047e6d1276853e612d152f5e8a352c61917887cc2169e2366b4c"
+checksum = "01cf844b23c6131f624accf65ce0e4e9956a8bb329400ea5bcc26ae3a5c20b0b"
 dependencies = [
  "autocfg",
  "bytes",
@@ -1645,12 +1645,9 @@ checksum = "56dee185309b50d1f11bfedef0fe6d036842e3fb77413abef29f8f8d1c5d4c1c"
 
 [[package]]
 name = "unicode-bidi"
-version = "0.3.5"
+version = "0.3.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "eeb8be209bb1c96b7c177c7420d26e04eccacb0eeae6b980e35fcb74678107e0"
-dependencies = [
- "matches",
-]
+checksum = "246f4c42e67e7a4e3c6106ff716a5d067d4132a642840b242e357e468a2a0085"
 
 [[package]]
 name = "unicode-normalization"
@@ -1771,7 +1768,7 @@ dependencies = [
 [[package]]
 name = "vulcast-rtc"
 version = "0.1.0"
-source = "git+ssh://git@github.com/vulcan-fydp/vulcast-rtc#43ff9ea324a2b4babe0b31a958c5556d0ce9e67e"
+source = "git+ssh://git@github.com/vulcan-fydp/vulcast-rtc#1c09c31e62cfa266a66dee97352a5ce920c429d6"
 dependencies = [
  "async-trait",
  "derive_more",
@@ -1787,7 +1784,7 @@ dependencies = [
 [[package]]
 name = "vulcast-rtc-sys"
 version = "0.1.0"
-source = "git+ssh://git@github.com/vulcan-fydp/vulcast-rtc#43ff9ea324a2b4babe0b31a958c5556d0ce9e67e"
+source = "git+ssh://git@github.com/vulcan-fydp/vulcast-rtc#1c09c31e62cfa266a66dee97352a5ce920c429d6"
 dependencies = [
  "bindgen",
  "cmake",
