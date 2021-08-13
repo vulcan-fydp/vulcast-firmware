@@ -201,8 +201,7 @@ async fn main() -> Result<()> {
     )
     .await?;
 
-    let ws_client = GraphQLWebSocket::new();
-    ws_client.connect(
+    let ws_client = GraphQLWebSocket::new(
         socket,
         Some(serde_json::to_value(SessionToken { token: relay_token })?),
     );
