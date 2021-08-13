@@ -1,5 +1,5 @@
 use std::io::Read;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use graphql::backend_query;
 use graphql::signal_query;
@@ -21,6 +21,7 @@ use http::Uri;
 use ini::Ini;
 use serde::Serialize;
 use serde_json::json;
+use std::convert::TryInto;
 use std::env;
 use tokio::net::TcpStream;
 use tokio_tungstenite::Connector;
@@ -148,6 +149,7 @@ async fn main() -> Result<()> {
     log::info!("Setting up controller emulator...");
     let mut controllers = NsProcons::new("procons");
     controllers.initialize()?;
+    let controllers = Arc::new(Mutex::new(controllers));
 
     log::info!("Loading config from ~/.vulcast/vulcast.conf");
     let conf = Ini::load_from_file(env::var("HOME").unwrap() + "/.vulcast/vulcast.conf")?;
@@ -313,9 +315,15 @@ async fn main() -> Result<()> {
                     let data_producer_id = response.data.unwrap().data_producer_available;
                     log::debug!("data producer available: {:?}", &data_producer_id);
                     let mut data_consumer = broadcaster.consume_data(data_producer_id.clone()).await;
+                    let cont_mutex = controllers.clone();
                     tokio::spawn(async move {
                         while let Some(message) = data_consumer.next().await {
-                            log::debug!("{:?}", message);
+                            log::trace!("{:?}", message);
+
+                            if message.len() == 13 {
+                                let mut conts = cont_mutex.lock().unwrap();
+                                conts.set_state(&controllers::NetworkControllerState(message.try_into().unwrap()));
+                            }
                         }
                         log::debug!("data producer {:?} is gone", data_producer_id);
                     });

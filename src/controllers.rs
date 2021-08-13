@@ -5,7 +5,7 @@ use controller_emulator::usb_gadget;
 use std::thread::sleep;
 use std::time::Duration;
 
-pub struct NetworkControllerState([u8; 13]);
+pub struct NetworkControllerState(pub [u8; 13]);
 
 impl NetworkControllerState {
     fn get_u16(&self, offset: usize) -> u16 {
@@ -25,7 +25,7 @@ impl NetworkControllerState {
     }
 
     pub fn get_button(&self, index: usize) -> bool {
-        let byte = index >> 3;
+        let byte = 2 + (index >> 3);
         let byte_ind = index & 7;
 
         ((self.0[byte] >> byte_ind) & 1) == 1
@@ -76,10 +76,10 @@ static PROCON_BUTTON_MAP: &'static [usize] = &[
 
 impl Controllers for NsProcons {
     fn new(gadget_name: &str) -> Self {
-        let procon_1 = ns_procon::NsProcon::create("/dev/hidg0");
-        let procon_2 = ns_procon::NsProcon::create("/dev/hidg1");
-        let procon_3 = ns_procon::NsProcon::create("/dev/hidg2");
-        let procon_4 = ns_procon::NsProcon::create("/dev/hidg3");
+        let procon_1 = ns_procon::NsProcon::create("/dev/hidg0", [255, 0, 0]);
+        let procon_2 = ns_procon::NsProcon::create("/dev/hidg1", [0, 192, 0]);
+        let procon_3 = ns_procon::NsProcon::create("/dev/hidg2", [255, 255, 0]);
+        let procon_4 = ns_procon::NsProcon::create("/dev/hidg3", [64, 64, 255]);
 
         Self {
             gadget_name: gadget_name.to_string(),
@@ -100,15 +100,22 @@ impl Controllers for NsProcons {
     }
 
     fn set_state(&mut self, state: &NetworkControllerState) {
+        if state.player_id() >= 4 {
+            log::info!("Invalid controller number: {}", state.player_id());
+            return;
+        }
+
         let controller = &mut self.controllers[state.player_id()];
 
         for button in 0..state.num_buttons() {
-            controller.set(PROCON_BUTTON_MAP[button], state.get_button(button));
+            controller.set(PROCON_BUTTON_MAP[button], state.get_button(button), false);
         }
 
-        controller.set_axis(ns_procon::inputs::AXIS_LH, state.lh());
-        controller.set_axis(ns_procon::inputs::AXIS_LV, state.lv());
-        controller.set_axis(ns_procon::inputs::AXIS_RH, state.rh());
-        controller.set_axis(ns_procon::inputs::AXIS_RV, state.rv());
+        controller.set_axis(ns_procon::inputs::AXIS_LH, state.lh(), false);
+        controller.set_axis(ns_procon::inputs::AXIS_LV, state.lv(), false);
+        controller.set_axis(ns_procon::inputs::AXIS_RH, state.rh(), false);
+        controller.set_axis(ns_procon::inputs::AXIS_RV, state.rv(), false);
+
+        controller.flush_input();
     }
 }

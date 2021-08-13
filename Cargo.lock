@@ -128,9 +128,9 @@ dependencies = [
 
 [[package]]
 name = "bitflags"
-version = "1.2.1"
+version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "cf1de2fe8c75bc145a2f577add951f8134889b4795d47466a54a5c846d691693"
+checksum = "2da1976d75adbe5fbc88130ecd119529cf1cc6a93ae1546d8696ee66f0d21af1"
 
 [[package]]
 name = "bitvec"
@@ -270,9 +270,11 @@ dependencies = [
 [[package]]
 name = "controller-emulator"
 version = "0.1.1"
-source = "git+ssh://git@github.com/vulcan-fydp/controller-emulator#61079c840dc627fe646bcd76ac6e50f2a2645e02"
 dependencies = [
  "bitvec",
+ "env_logger 0.8.4",
+ "log",
+ "rand",
 ]
 
 [[package]]
@@ -852,9 +854,9 @@ dependencies = [
 
 [[package]]
 name = "matches"
-version = "0.1.8"
+version = "0.1.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ffc5c5338469d4d3ea17d269fa8ea3512ad247247c30bd2df69e68309ed0a08"
+checksum = "a3e378b66a060d48947b590737b30a1be76706c8dd7b8ba0f2fe3989c68a853f"
 
 [[package]]
 name = "memchr"
