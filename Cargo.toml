@@ -63,7 +63,7 @@ reqwest = { version = "0.11.4", default_features = false, features = [
     "rustls-tls",
 ] }
 
-graphql-ws = { git = "ssh://git@github.com/Netdex/graphql-ws.git", version = "0.3.2" }
+graphql-ws = { git = "ssh://git@github.com/Netdex/graphql-ws.git", version = "0.4" }
 
 [build-dependencies]
 built = "0.5"
