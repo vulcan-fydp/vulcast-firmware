@@ -321,7 +321,11 @@ async fn main() -> Result<()> {
 
                             if message.len() == 13 {
                                 let mut conts = cont_mutex.lock().unwrap();
-                                conts.set_state(&controllers::NetworkControllerState(message.try_into().unwrap()));
+                                let res = conts.set_state(controllers::NetworkControllerState(message.try_into().unwrap()));
+                                match &res {
+                                    Err(e) => log::warn!("Error writing input: {:?}", e),
+                                    Ok(_) => (),
+                                };
                             }
                         }
                         log::debug!("data producer {:?} is gone", data_producer_id);

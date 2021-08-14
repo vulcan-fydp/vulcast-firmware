@@ -271,6 +271,7 @@ dependencies = [
 name = "controller-emulator"
 version = "0.1.1"
 dependencies = [
+ "anyhow",
  "bitvec",
  "env_logger 0.8.4",
  "log",

@@ -1,10 +1,11 @@
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use controller_emulator::controller::ns_procon;
 use controller_emulator::controller::Controller;
 use controller_emulator::usb_gadget;
 use std::thread::sleep;
 use std::time::Duration;
 
+#[derive(Debug, Copy, Clone)]
 pub struct NetworkControllerState(pub [u8; 13]);
 
 impl NetworkControllerState {
@@ -16,7 +17,7 @@ impl NetworkControllerState {
         self.0[0] as usize
     }
 
-    pub fn _sequence_no(&self) -> u8 {
+    pub fn sequence_no(&self) -> u8 {
         self.0[1]
     }
 
@@ -42,16 +43,25 @@ impl NetworkControllerState {
     pub fn rv(&self) -> u16 {
         self.get_u16(11)
     }
+
+    pub fn diff(&self, other: &NetworkControllerState) -> bool {
+        self.0[2..13]
+            .iter()
+            .zip(&other.0[2..13])
+            .fold(0u32, |acc, (x, y)| acc + (x ^ y) as u32)
+            != 0
+    }
 }
 
 pub trait Controllers {
     fn new(gadget_name: &str) -> Self;
     fn initialize(&mut self) -> Result<()>;
-    fn set_state(&mut self, state: &NetworkControllerState);
+    fn set_state(&mut self, state: NetworkControllerState) -> Result<()>;
 }
 pub struct NsProcons {
     gadget_name: String,
     controllers: [ns_procon::NsProcon; 4],
+    last_state: [NetworkControllerState; 4],
 }
 
 static PROCON_BUTTON_MAP: &'static [usize] = &[
@@ -84,6 +94,7 @@ impl Controllers for NsProcons {
         Self {
             gadget_name: gadget_name.to_string(),
             controllers: [procon_1, procon_2, procon_3, procon_4],
+            last_state: [NetworkControllerState([0u8; 13]); 4],
         }
     }
 
@@ -99,23 +110,28 @@ impl Controllers for NsProcons {
         Ok(())
     }
 
-    fn set_state(&mut self, state: &NetworkControllerState) {
+    fn set_state(&mut self, state: NetworkControllerState) -> Result<()> {
         if state.player_id() >= 4 {
-            log::info!("Invalid controller number: {}", state.player_id());
-            return;
+            return Err(anyhow!("Invalid controller number: {}", state.player_id()));
         }
+
+        if !self.last_state[state.player_id()].diff(&state) {
+            return Ok(());
+        }
+
+        self.last_state[state.player_id()] = state;
 
         let controller = &mut self.controllers[state.player_id()];
 
         for button in 0..state.num_buttons() {
-            controller.set(PROCON_BUTTON_MAP[button], state.get_button(button), false);
+            let _ = controller.set(PROCON_BUTTON_MAP[button], state.get_button(button), false);
         }
 
-        controller.set_axis(ns_procon::inputs::AXIS_LH, state.lh(), false);
-        controller.set_axis(ns_procon::inputs::AXIS_LV, state.lv(), false);
-        controller.set_axis(ns_procon::inputs::AXIS_RH, state.rh(), false);
-        controller.set_axis(ns_procon::inputs::AXIS_RV, state.rv(), false);
+        let _ = controller.set_axis(ns_procon::inputs::AXIS_LH, state.lh(), false);
+        let _ = controller.set_axis(ns_procon::inputs::AXIS_LV, state.lv(), false);
+        let _ = controller.set_axis(ns_procon::inputs::AXIS_RH, state.rh(), false);
+        let _ = controller.set_axis(ns_procon::inputs::AXIS_RV, state.rv(), false);
 
-        controller.flush_input();
+        controller.flush_input()
     }
 }
