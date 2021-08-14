@@ -60,7 +60,7 @@ async fn login(conf: &Ini, client: &reqwest::Client) -> Result<String> {
     let login_query =
         backend_query::LogInAsVulcast::build_query(backend_query::log_in_as_vulcast::Variables {
             vulcast_id: guid,
-            secret: secret,
+            secret,
         });
     let auth = client.post(&uri).json(&login_query).send().await?;
     let response_body: Response<backend_query::log_in_as_vulcast::ResponseData> =
@@ -70,7 +70,7 @@ async fn login(conf: &Ini, client: &reqwest::Client) -> Result<String> {
     }
     let response_data: backend_query::log_in_as_vulcast::ResponseData = response_body
         .data
-        .ok_or(anyhow!("Request returned no data"))?;
+        .ok_or_else(|| anyhow!("Request returned no data"))?;
     match response_data.log_in_as_vulcast {
         VulcastAuthentication(auth) => Ok(auth.vulcast_access_token),
         LoginAuthenticationError(error) => Err(anyhow!("Authentication error: {}", error.message)),
@@ -91,10 +91,10 @@ fn read_relay_assignment() -> Result<(String, String)> {
     let relay_file = Ini::load_from_file(env::var("HOME").unwrap() + "/.vulcast/assigned_relay")?;
     let host = relay_file
         .get_from(Some("relay"), "hostname")
-        .ok_or(anyhow!("Could not load relay hostname from file"))?;
+        .ok_or_else(|| anyhow!("Could not load relay hostname from file"))?;
     let token = relay_file
         .get_from(Some("relay"), "token")
-        .ok_or(anyhow!("Could not load relay token from file"))?;
+        .ok_or_else(|| anyhow!("Could not load relay token from file"))?;
     Ok((host.to_owned(), token.to_owned()))
 }
 
@@ -116,7 +116,7 @@ async fn assign_relay(
     );
     let res = client
         .post(&uri)
-        .bearer_auth("vulcast_".to_owned() + &auth_token)
+        .bearer_auth("vulcast_".to_owned() + auth_token)
         .json(&register_query)
         .send()
         .await?;
@@ -128,7 +128,7 @@ async fn assign_relay(
     }
     let response_data: backend_query::assign_vulcast_to_relay::ResponseData = response_body
         .data
-        .ok_or(anyhow!("Request returned no data"))?;
+        .ok_or_else(|| anyhow!("Request returned no data"))?;
     match response_data.assign_vulcast_to_relay {
         RelayAssignment(assignment) => {
             let _ =
@@ -158,7 +158,7 @@ async fn main() -> Result<()> {
     let access_token = login(&conf, &client).await?;
     let (relay_host, relay_token) = assign_relay(&conf, &client, &access_token)
         .await
-        .or(read_relay_assignment())?;
+        .or_else(|_| read_relay_assignment())?;
 
     log::info!("Assigned to relay {:?}", relay_host);
 

@@ -17,7 +17,7 @@ impl NetworkControllerState {
         self.0[0] as usize
     }
 
-    pub fn sequence_no(&self) -> u8 {
+    pub fn _sequence_no(&self) -> u8 {
         self.0[1]
     }
 
@@ -64,7 +64,7 @@ pub struct NsProcons {
     last_state: [NetworkControllerState; 4],
 }
 
-static PROCON_BUTTON_MAP: &'static [usize] = &[
+static PROCON_BUTTON_MAP: &[usize] = &[
     ns_procon::inputs::BUTTON_A,
     ns_procon::inputs::BUTTON_B,
     ns_procon::inputs::BUTTON_X,
@@ -123,8 +123,12 @@ impl Controllers for NsProcons {
 
         let controller = &mut self.controllers[state.player_id()];
 
-        for button in 0..state.num_buttons() {
-            let _ = controller.set(PROCON_BUTTON_MAP[button], state.get_button(button), false);
+        for (button, &mapping) in PROCON_BUTTON_MAP
+            .iter()
+            .enumerate()
+            .take(state.num_buttons())
+        {
+            let _ = controller.set(mapping, state.get_button(button), false);
         }
 
         let _ = controller.set_axis(ns_procon::inputs::AXIS_LH, state.lh(), false);

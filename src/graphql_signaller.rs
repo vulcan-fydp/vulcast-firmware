@@ -46,8 +46,7 @@ impl Signaller for GraphQLSignaller {
             .query_unchecked::<schema::ClientRtpCapabilities>(
                 schema::client_rtp_capabilities::Variables { rtp_capabilities },
             )
-            .await
-            .rtp_capabilities;
+            .await;
     }
 
     async fn on_produce(
@@ -78,8 +77,7 @@ impl Signaller for GraphQLSignaller {
                     dtls_parameters,
                 },
             )
-            .await
-            .connect_webrtc_transport;
+            .await;
     }
 
     async fn consume_data(
