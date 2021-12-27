@@ -84,14 +84,15 @@ impl Signaller for GraphQLSignaller {
         &self,
         transport_id: vulcast_rtc::types::TransportId,
         data_producer_id: vulcast_rtc::types::DataProducerId,
-    ) -> vulcast_rtc::types::DataConsumerOptions {
-        self.client
+    ) -> Result<vulcast_rtc::types::DataConsumerOptions, Box<dyn std::error::Error>> {
+        Ok(self
+            .client
             .query_unchecked::<schema::ConsumeData>(schema::consume_data::Variables {
                 transport_id,
                 data_producer_id,
             })
             .await
-            .consume_data
+            .consume_data)
     }
 
     async fn on_connection_state_changed(

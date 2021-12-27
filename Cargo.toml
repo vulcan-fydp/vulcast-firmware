@@ -30,9 +30,10 @@ maintainer-scripts = "debian/scripts"
 
 [dependencies]
 # mediasoup = { version = "0.8", git = "https://github.com/netdex/mediasoup", branch = "rust-async-trait-send" }
-vulcast-rtc = { version = "*", git = "ssh://git@github.com/vulcan-fydp/vulcast-rtc" }
 # controller-emulator = { version = "*", git = "ssh://git@github.com/vulcan-fydp/controller-emulator" }
-controller-emulator = { version = "*", path = "../controller-emulator" }
+vulcast-rtc = { version = "*", git = "ssh://git@github.com/vulcan-fydp/vulcast-rtc" }
+# vulcast-rtc = { version = "*", path = "../vulcast-rtc/vulcast-rtc" }
+controller-emulator = { version = "*", git = "ssh://git@github.com/vulcan-fydp/controller-emulator" }
 
 # once_cell = "1.8.0"
 log = "0.4.14"
@@ -67,6 +68,6 @@ graphql-ws = { git = "ssh://git@github.com/Netdex/graphql-ws.git", version = "0.
 
 [build-dependencies]
 built = "0.5"
-schema = { git = "ssh://git@github.com/vulcan-fydp/schema.git", version = "0.0.30" }
+schema = { git = "ssh://git@github.com/vulcan-fydp/schema.git", version = "0.0.34" }
 
 [dev-dependencies]
