@@ -178,24 +178,25 @@ async fn main() -> Result<()> {
         .header("Sec-WebSocket-Protocol", "graphql-ws")
         .body(())?;
 
-    // remove this later
     struct PromiscuousServerVerifier;
-    impl rustls::ServerCertVerifier for PromiscuousServerVerifier {
+    impl rustls::client::ServerCertVerifier for PromiscuousServerVerifier {
         fn verify_server_cert(
             &self,
-            _roots: &rustls::RootCertStore,
-            _presented_certs: &[rustls::Certificate],
-            _dns_name: webpki::DNSNameRef,
+            _end_entity: &rustls::Certificate,
+            _intermediates: &[rustls::Certificate],
+            _server_name: &rustls::ServerName,
+            _scts: &mut dyn Iterator<Item = &[u8]>,
             _ocsp_response: &[u8],
-        ) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
+            _now: std::time::SystemTime,
+        ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
             // here be dragons
-            Ok(rustls::ServerCertVerified::assertion())
+            Ok(rustls::client::ServerCertVerified::assertion())
         }
     }
-    let mut client_config = rustls::ClientConfig::default();
-    client_config
-        .dangerous()
-        .set_certificate_verifier(Arc::new(PromiscuousServerVerifier));
+    let client_config = rustls::ClientConfig::builder()
+        .with_safe_defaults()
+        .with_custom_certificate_verifier(Arc::new(PromiscuousServerVerifier))
+        .with_no_client_auth();
     let (socket, _response) = tokio_tungstenite::client_async_tls_with_config(
         req,
         stream,
@@ -217,7 +218,10 @@ async fn main() -> Result<()> {
     );
     let mut data_producer_available_stream = data_producer_available.execute();
     tokio::spawn(async move {
-        let _vcm_capturer = broadcaster.produce_video_from_vcm_capturer(Some(-1), 1280, 720, 30).await;
+        let _vcm_capturer = broadcaster
+            .produce_video_from_vcm_capturer(Some(-1), 1280, 720, 30)
+            .await;
+        let _alsa_capturer = broadcaster.produce_audio_from_default_alsa().await;
         let mut shutdown = signaller.shutdown();
         loop {
             tokio::select! {
