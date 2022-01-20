@@ -145,6 +145,7 @@ async fn assign_relay(
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init_from_env(env_logger::Env::default());
+    vulcast_rtc::set_native_log_level(vulcast_rtc::LogLevel::Verbose);
 
     log::info!("Setting up controller emulator...");
     let mut controllers = NsProcons::new("procons");
@@ -177,24 +178,25 @@ async fn main() -> Result<()> {
         .header("Sec-WebSocket-Protocol", "graphql-ws")
         .body(())?;
 
-    // remove this later
     struct PromiscuousServerVerifier;
-    impl rustls::ServerCertVerifier for PromiscuousServerVerifier {
+    impl rustls::client::ServerCertVerifier for PromiscuousServerVerifier {
         fn verify_server_cert(
             &self,
-            _roots: &rustls::RootCertStore,
-            _presented_certs: &[rustls::Certificate],
-            _dns_name: webpki::DNSNameRef,
+            _end_entity: &rustls::Certificate,
+            _intermediates: &[rustls::Certificate],
+            _server_name: &rustls::ServerName,
+            _scts: &mut dyn Iterator<Item = &[u8]>,
             _ocsp_response: &[u8],
-        ) -> Result<rustls::ServerCertVerified, rustls::TLSError> {
+            _now: std::time::SystemTime,
+        ) -> Result<rustls::client::ServerCertVerified, rustls::Error> {
             // here be dragons
-            Ok(rustls::ServerCertVerified::assertion())
+            Ok(rustls::client::ServerCertVerified::assertion())
         }
     }
-    let mut client_config = rustls::ClientConfig::default();
-    client_config
-        .dangerous()
-        .set_certificate_verifier(Arc::new(PromiscuousServerVerifier));
+    let client_config = rustls::ClientConfig::builder()
+        .with_safe_defaults()
+        .with_custom_certificate_verifier(Arc::new(PromiscuousServerVerifier))
+        .with_no_client_auth();
     let (socket, _response) = tokio_tungstenite::client_async_tls_with_config(
         req,
         stream,
@@ -208,97 +210,6 @@ async fn main() -> Result<()> {
         Some(serde_json::to_value(SessionToken { token: relay_token })?),
     );
 
-    let audio_transport_options = ws_client
-        .query_unchecked::<signal_query::CreatePlainTransport>(
-            signal_query::create_plain_transport::Variables,
-        )
-        .await
-        .create_plain_transport;
-    log::debug!("Audio transport options: {:?}", audio_transport_options);
-    let video_transport_options = ws_client
-        .query_unchecked::<signal_query::CreatePlainTransport>(
-            signal_query::create_plain_transport::Variables,
-        )
-        .await
-        .create_plain_transport;
-    log::debug!("Video transport options: {:?}", video_transport_options);
-
-    let audio_transport_id = audio_transport_options.id.clone();
-    let video_transport_id = video_transport_options.id.clone();
-
-    let audio_producer_id = ws_client
-        .query_unchecked::<signal_query::ProducePlain>(signal_query::produce_plain::Variables {
-            transport_id: audio_transport_id,
-            kind: MediaKind::Audio,
-            rtp_parameters: RtpParameters::from(json!({
-                "codecs": [{
-                    "mimeType": "audio/opus",
-                    "payloadType": 101,
-                    "clockRate": 48000,
-                    "channels": 2,
-                    "parameters": {"sprop-stereo": 1},
-                    "rtcpFeedback": [{"type": "nack", "parameter": ""},
-                                     {"type": "nack", "parameter": "pli"},
-                                     {"type": "ccm", "parameter": "fir"},
-                                     {"type": "goog-remb", "parameter": ""},
-                                     {"type": "transport-cc", "parameter": ""},
-                                     {"type": "unknown", "parameter": ""},
-                    ]
-                }],
-                "headerExtensions": [],
-                "encodings": [{
-                    "ssrc": 11111111,
-                }],
-                "rtcp": {"reducedSize": true}
-            })),
-        })
-        .await
-        .produce_plain;
-    log::debug!("audio producer: {:?}", audio_producer_id);
-
-    let video_producer_id = ws_client
-        .query_unchecked::<signal_query::ProducePlain>(signal_query::produce_plain::Variables {
-            transport_id: video_transport_id,
-            kind: MediaKind::Video,
-            rtp_parameters: RtpParameters::from(json!({
-                "codecs": [{
-                    // "mimeType": "video/H264",
-                    // "payloadType": 102,
-                    // "clockRate": 90000,
-                    // "parameters": {
-                    //     "packetization-mode": 1,
-                    //     "level-asymmetry-allowed": 1,
-                    //     "profile-level-id": "42e01f"
-                    // },
-                    "mimeType": "video/VP8",
-                    "payloadType": 102,
-                    "clockRate": 90000,
-                    "parameters": {},
-                    "rtcpFeedback": [{"type": "nack", "parameter": ""},
-                                    {"type": "nack", "parameter": "pli"},
-                                    {"type": "ccm", "parameter": "fir"},
-                                    {"type": "goog-remb", "parameter": ""},
-                                    {"type": "transport-cc", "parameter": ""},
-                                    {"type": "unknown", "parameter": ""},
-                    ]
-                }],
-                "headerExtensions": [],
-                "encodings": [{
-                    "ssrc": 22222222,
-                }],
-                "rtcp": {"reducedSize": true}
-            })),
-        })
-        .await
-        .produce_plain;
-    log::debug!("video producer: {:?}", video_producer_id);
-
-    // println!("Press Enter to start stream...");
-    // let _ = std::io::stdin().read(&mut [0u8]).unwrap();
-
-    let gstreamer = GStreamer::new();
-    let mut stream_process = gstreamer.stream(audio_transport_options, video_transport_options)?;
-
     let signaller = Arc::new(GraphQLSignaller::new(ws_client.clone()));
     let broadcaster = Broadcaster::new(signaller.clone());
 
@@ -307,13 +218,17 @@ async fn main() -> Result<()> {
     );
     let mut data_producer_available_stream = data_producer_available.execute();
     tokio::spawn(async move {
+        let _vcm_capturer = broadcaster
+            .produce_video_from_vcm_capturer(Some(-1), 1280, 720, 30)
+            .await;
+        let _alsa_capturer = broadcaster.produce_audio_from_default_alsa().await;
         let mut shutdown = signaller.shutdown();
         loop {
             tokio::select! {
                 Some(Ok(response)) = data_producer_available_stream.next() => {
                     let data_producer_id = response.data.unwrap().data_producer_available;
                     log::debug!("data producer available: {:?}", &data_producer_id);
-                    let mut data_consumer = broadcaster.consume_data(data_producer_id.clone()).await;
+                    let mut data_consumer = broadcaster.consume_data(data_producer_id.clone()).await.unwrap();
                     let cont_mutex = controllers.clone();
                     tokio::spawn(async move {
                         while let Some(message) = data_consumer.next().await {
@@ -339,8 +254,6 @@ async fn main() -> Result<()> {
 
     println!("Press Enter to end session...");
     let _ = std::io::stdin().read(&mut [0u8]).unwrap();
-
-    stream_process.kill()?;
 
     Ok(())
 }
