@@ -11,18 +11,16 @@ use backend_query::assign_vulcast_to_relay::AssignVulcastToRelayAssignVulcastToR
 use backend_query::log_in_as_vulcast::LogInAsVulcastLogInAsVulcast::{
     AuthenticationError as LoginAuthenticationError, VulcastAuthentication,
 };
+use clap::Parser;
 use controllers::Controllers;
 use controllers::NsProcons;
-use data_streamer::{GStreamer, Streamer};
 use futures::StreamExt;
 use graphql_client::{GraphQLQuery, Response};
 use graphql_ws::GraphQLWebSocket;
 use http::Uri;
 use ini::Ini;
 use serde::Serialize;
-use serde_json::json;
 use std::convert::TryInto;
-use std::env;
 use tokio::net::TcpStream;
 use tokio_tungstenite::Connector;
 use vulcast_rtc::broadcaster::Broadcaster;
@@ -30,10 +28,13 @@ use vulcast_rtc::types::*;
 
 use crate::graphql_signaller::GraphQLSignaller;
 
+mod cmdline;
 mod controllers;
 mod data_streamer;
 mod graphql;
 mod graphql_signaller;
+
+use cmdline::Opts;
 
 #[derive(Serialize)]
 struct SessionToken {
@@ -77,18 +78,18 @@ async fn login(conf: &Ini, client: &reqwest::Client) -> Result<String> {
     }
 }
 
-fn write_relay_assignment(hostname: &str, token: &str) -> Result<()> {
+fn write_relay_assignment(hostname: &str, token: &str, opts: &Opts) -> Result<()> {
     let mut assigned = Ini::new();
     assigned
         .with_section(Some("relay"))
         .set("hostname", hostname)
         .set("token", token);
-    assigned.write_to_file(env::var("HOME").unwrap() + "/.vulcast/assigned_relay")?;
+    assigned.write_to_file(opts.config_dir.clone() + "/assigned_relay")?;
     Ok(())
 }
 
-fn read_relay_assignment() -> Result<(String, String)> {
-    let relay_file = Ini::load_from_file(env::var("HOME").unwrap() + "/.vulcast/assigned_relay")?;
+fn read_relay_assignment(opts: &Opts) -> Result<(String, String)> {
+    let relay_file = Ini::load_from_file(opts.config_dir.clone() + "/assigned_relay")?;
     let host = relay_file
         .get_from(Some("relay"), "hostname")
         .ok_or_else(|| anyhow!("Could not load relay hostname from file"))?;
@@ -100,6 +101,7 @@ fn read_relay_assignment() -> Result<(String, String)> {
 
 async fn assign_relay(
     conf: &Ini,
+    opts: &Opts,
     client: &reqwest::Client,
     auth_token: &str,
 ) -> Result<(String, String)> {
@@ -131,8 +133,11 @@ async fn assign_relay(
         .ok_or_else(|| anyhow!("Request returned no data"))?;
     match response_data.assign_vulcast_to_relay {
         RelayAssignment(assignment) => {
-            let _ =
-                write_relay_assignment(&assignment.relay.host_name, &assignment.relay_access_token);
+            let _ = write_relay_assignment(
+                &assignment.relay.host_name,
+                &assignment.relay_access_token,
+                &opts,
+            );
             Ok((assignment.relay.host_name, assignment.relay_access_token))
         }
         AuthenticationError(error) => Err(anyhow!("Authentication error: {}", error.message)),
@@ -147,19 +152,30 @@ async fn main() -> Result<()> {
     env_logger::init_from_env(env_logger::Env::default());
     vulcast_rtc::set_native_log_level(vulcast_rtc::LogLevel::Verbose);
 
-    log::info!("Setting up controller emulator...");
-    let mut controllers = NsProcons::new("procons");
-    controllers.initialize()?;
-    let controllers = Arc::new(Mutex::new(controllers));
+    let opts: Opts = Opts::parse();
 
-    log::info!("Loading config from ~/.vulcast/vulcast.conf");
-    let conf = Ini::load_from_file(env::var("HOME").unwrap() + "/.vulcast/vulcast.conf")?;
+    let controllers = {
+        if !opts.no_controller {
+            log::info!("Setting up controller emulator...");
+            let mut controllers = NsProcons::new("procons");
+            controllers.initialize()?;
+            Some(Arc::new(Mutex::new(controllers)))
+        } else {
+            None
+        }
+    };
+
+    log::info!("Loading config from {}", opts.config_dir);
+    let conf = Ini::load_from_file(opts.config_dir.clone() + "/vulcast.conf").expect(&format!(
+        "Couldn't open config file: {}/vulcast.conf",
+        &opts.config_dir
+    ));
     let client = reqwest::Client::new();
 
     let access_token = login(&conf, &client).await?;
-    let (relay_host, relay_token) = assign_relay(&conf, &client, &access_token)
+    let (relay_host, relay_token) = assign_relay(&conf, &opts, &client, &access_token)
         .await
-        .or_else(|_| read_relay_assignment())?;
+        .or_else(|_| read_relay_assignment(&opts))?;
 
     log::info!("Assigned to relay {:?}", relay_host);
 
@@ -234,13 +250,15 @@ async fn main() -> Result<()> {
                         while let Some(message) = data_consumer.next().await {
                             log::trace!("{:?}", message);
 
-                            if message.len() == 13 {
+                            if let Some(cont_mutex) = &cont_mutex {
+                               if  message.len() == 13 {
                                 let mut conts = cont_mutex.lock().unwrap();
                                 let res = conts.set_state(controllers::NetworkControllerState(message.try_into().unwrap()));
                                 match &res {
                                     Err(e) => log::warn!("Error writing input: {:?}", e),
                                     Ok(_) => (),
                                 };
+                               }
                             }
                         }
                         log::debug!("data producer {:?} is gone", data_producer_id);
