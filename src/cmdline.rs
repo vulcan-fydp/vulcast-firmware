@@ -11,7 +11,7 @@ pub struct Opts {
     #[clap(long)]
     pub no_controller: bool,
 
-    /// Location of vulcast.conf file
-    #[clap(long, default_value = concat!(env!("HOME"), "/.vulcast/vulcast.conf"))]
-    pub config: String,
+    /// Directory containing vulcast.conf and other config
+    #[clap(long, default_value = concat!(env!("HOME"), "/.vulcast"))]
+    pub config_dir: String,
 }

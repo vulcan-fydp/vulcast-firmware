@@ -4,7 +4,7 @@ AssertPathExists=/usr/bin/vulcast-firmware
 
 [Service]
 WorkingDirectory=~
-ExecStart=/usr/bin/vulcast-firmware
+ExecStart=/usr/bin/vulcast-firmware --config-dir /etc/vulcast-firmware
 Restart=always
 PrivateTmp=true
 NoNewPrivileges=true
