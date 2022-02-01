@@ -15,12 +15,17 @@ priority = "optional"
 assets = [
     [
         "target/release/vulcast-firmware",
-        "usr/bin/vulcast-firmware",
+        "/usr/bin/vulcast-firmware",
         "755",
     ],
     [
         "debian/vulcast-firmware.service",
         "/lib/systemd/system/vulcast-firmware.service",
+        "644",
+    ],
+    [
+        "debian/vulcast.conf",
+        "/etc/vulcast-firmware/vulcast.conf",
         "644",
     ],
 ]
