@@ -11,16 +11,15 @@ use backend_query::assign_vulcast_to_relay::AssignVulcastToRelayAssignVulcastToR
 use backend_query::log_in_as_vulcast::LogInAsVulcastLogInAsVulcast::{
     AuthenticationError as LoginAuthenticationError, VulcastAuthentication,
 };
+use clap::Parser;
 use controllers::Controllers;
 use controllers::NsProcons;
-use data_streamer::{GStreamer, Streamer};
 use futures::StreamExt;
 use graphql_client::{GraphQLQuery, Response};
 use graphql_ws::GraphQLWebSocket;
 use http::Uri;
 use ini::Ini;
 use serde::Serialize;
-use serde_json::json;
 use std::convert::TryInto;
 use std::env;
 use tokio::net::TcpStream;
@@ -30,6 +29,7 @@ use vulcast_rtc::types::*;
 
 use crate::graphql_signaller::GraphQLSignaller;
 
+mod cmdline;
 mod controllers;
 mod data_streamer;
 mod graphql;
@@ -147,13 +147,21 @@ async fn main() -> Result<()> {
     env_logger::init_from_env(env_logger::Env::default());
     vulcast_rtc::set_native_log_level(vulcast_rtc::LogLevel::Verbose);
 
-    log::info!("Setting up controller emulator...");
-    let mut controllers = NsProcons::new("procons");
-    controllers.initialize()?;
-    let controllers = Arc::new(Mutex::new(controllers));
+    let opts: cmdline::Opts = cmdline::Opts::parse();
 
-    log::info!("Loading config from ~/.vulcast/vulcast.conf");
-    let conf = Ini::load_from_file(env::var("HOME").unwrap() + "/.vulcast/vulcast.conf")?;
+    let controllers = {
+        if !opts.no_controller {
+            log::info!("Setting up controller emulator...");
+            let mut controllers = NsProcons::new("procons");
+            controllers.initialize()?;
+            Some(Arc::new(Mutex::new(controllers)))
+        } else {
+            None
+        }
+    };
+
+    log::info!("Loading config from {}", opts.config);
+    let conf = Ini::load_from_file(opts.config).expect("Couldn't open config file");
     let client = reqwest::Client::new();
 
     let access_token = login(&conf, &client).await?;
@@ -234,13 +242,15 @@ async fn main() -> Result<()> {
                         while let Some(message) = data_consumer.next().await {
                             log::trace!("{:?}", message);
 
-                            if message.len() == 13 {
+                            if let Some(cont_mutex) = &cont_mutex {
+                               if  message.len() == 13 {
                                 let mut conts = cont_mutex.lock().unwrap();
                                 let res = conts.set_state(controllers::NetworkControllerState(message.try_into().unwrap()));
                                 match &res {
                                     Err(e) => log::warn!("Error writing input: {:?}", e),
                                     Ok(_) => (),
                                 };
+                               }
                             }
                         }
                         log::debug!("data producer {:?} is gone", data_producer_id);
