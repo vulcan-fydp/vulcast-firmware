@@ -75,6 +75,6 @@ graphql-ws = { git = "ssh://git@github.com/Netdex/graphql-ws.git", version = "0.
 
 [build-dependencies]
 built = "0.5"
-schema = { git = "ssh://git@github.com/vulcan-fydp/schema.git", version = "0.0.39" }
+schema = { git = "ssh://git@github.com/vulcan-fydp/schema.git", version = "0.0.40" }
 
 [dev-dependencies]

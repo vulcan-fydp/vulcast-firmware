@@ -65,6 +65,20 @@ impl Signaller for GraphQLSignaller {
             .produce
     }
 
+    async fn on_produce_data(
+        &self,
+        transport_id: vulcast_rtc::types::TransportId,
+        sctp_stream_parameters: vulcast_rtc::types::SctpStreamParameters,
+    ) -> vulcast_rtc::types::DataProducerId {
+        self.client
+            .query_unchecked::<schema::ProduceData>(schema::produce_data::Variables {
+                transport_id,
+                sctp_stream_parameters,
+            })
+            .await
+            .produce_data
+    }
+
     async fn on_connect_webrtc_transport(
         &self,
         transport_id: vulcast_rtc::types::TransportId,

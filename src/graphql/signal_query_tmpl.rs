@@ -70,6 +70,13 @@ pub struct ConnectWebrtcTransport;
 )]
 pub struct ConsumeData;
 
+#[derive(GraphQLQuery)]
+#[graphql(
+    schema_path = "$schema_path$",
+    query_path = "src/graphql/query/signal_query.gql",
+)]
+pub struct ProduceData;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(untagged)]
 pub enum TransportTuple {

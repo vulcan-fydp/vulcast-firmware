@@ -150,7 +150,6 @@ async fn assign_relay(
 #[tokio::main]
 async fn main() -> Result<()> {
     env_logger::init_from_env(env_logger::Env::default());
-    vulcast_rtc::set_native_log_level(vulcast_rtc::LogLevel::Verbose);
 
     let opts: Opts = Opts::parse();
 

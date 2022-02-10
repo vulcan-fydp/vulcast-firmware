@@ -33,3 +33,7 @@ mutation ConnectWebrtcTransport($transportId: TransportId!, $dtlsParameters: Dtl
 mutation ConsumeData($transportId: TransportId!, $dataProducerId: DataProducerId!) {
 	consumeData(transportId: $transportId, dataProducerId: $dataProducerId)
 }
+
+mutation ProduceData($transportId: TransportId!, $sctpStreamParameters: SctpStreamParameters!) {
+	produceData(transportId: $transportId, sctpStreamParameters: $sctpStreamParameters)
+}
