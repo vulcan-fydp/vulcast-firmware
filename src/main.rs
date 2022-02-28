@@ -79,6 +79,7 @@ async fn login(conf: &Ini, client: &reqwest::Client) -> Result<String> {
 }
 
 fn write_relay_assignment(hostname: &str, token: &str, opts: &Opts) -> Result<()> {
+    log::info!("Writing relay assignment...");
     let mut assigned = Ini::new();
     assigned
         .with_section(Some("relay"))
@@ -89,6 +90,7 @@ fn write_relay_assignment(hostname: &str, token: &str, opts: &Opts) -> Result<()
 }
 
 fn read_relay_assignment(opts: &Opts) -> Result<(String, String)> {
+    log::info!("Reading relay assignment...");
     let relay_file = Ini::load_from_file(opts.config_dir.clone() + "/assigned_relay")?;
     let host = relay_file
         .get_from(Some("relay"), "hostname")
@@ -220,6 +222,7 @@ async fn main() -> Result<()> {
     )
     .await?;
 
+    log::info!("Strarting graphql client");
     let ws_client = GraphQLWebSocket::new(
         socket,
         Some(serde_json::to_value(SessionToken { token: relay_token })?),
