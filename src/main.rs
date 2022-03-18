@@ -229,7 +229,7 @@ async fn main() -> Result<()> {
     );
 
     let signaller = Arc::new(GraphQLSignaller::new(ws_client.clone()));
-    let broadcaster = Broadcaster::new(signaller.clone());
+    let broadcaster = Broadcaster::new(signaller.clone()).await;
 
     let data_producer_available = ws_client.subscribe::<signal_query::DataProducerAvailable>(
         signal_query::data_producer_available::Variables,
