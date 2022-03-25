@@ -1,8 +1,11 @@
 [Unit]
 Description=Vulcast firmware
 AssertPathExists=/usr/bin/vulcast-firmware
+After=network-online.target
+Wants=network-online.target
 
 [Service]
+Type=simple
 WorkingDirectory=~
 ExecStart=/usr/bin/vulcast-firmware --config-dir /etc/vulcast-firmware
 Restart=always

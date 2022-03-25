@@ -55,7 +55,7 @@ anyhow = "1.0"
 
 clap = { version = "3.0.13", features = ["derive"] }
 
-tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync"] }
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "sync", "io-std"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 futures = "0.3"
 async-trait = "0.1.48"
@@ -72,6 +72,7 @@ reqwest = { version = "0.11.4", default_features = false, features = [
 ] }
 
 graphql-ws = { git = "ssh://git@github.com/Netdex/graphql-ws.git", version = "0.4" }
+atty = "0.2"
 
 [build-dependencies]
 built = "0.5"

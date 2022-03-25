@@ -1,10 +1,11 @@
-use std::io::Read;
 use std::sync::{Arc, Mutex};
+use tokio::io::AsyncReadExt;
 
 use graphql::backend_query;
 use graphql::signal_query;
 
 use anyhow::{anyhow, Result};
+use atty::Stream;
 use backend_query::assign_vulcast_to_relay::AssignVulcastToRelayAssignVulcastToRelay::{
     AuthenticationError, RelayAssignment, VulcastAssignedToRelayError,
 };
@@ -235,45 +236,45 @@ async fn main() -> Result<()> {
         signal_query::data_producer_available::Variables,
     );
     let mut data_producer_available_stream = data_producer_available.execute();
-    tokio::spawn(async move {
-        let _vcm_capturer = broadcaster
-            .produce_video_from_vcm_capturer(Some(-1), 1280, 720, 30)
-            .await;
-        let _alsa_capturer = broadcaster.produce_audio_from_default_alsa().await;
-        let mut shutdown = signaller.shutdown();
-        loop {
-            tokio::select! {
-                Some(Ok(response)) = data_producer_available_stream.next() => {
-                    let data_producer_id = response.data.unwrap().data_producer_available;
-                    log::debug!("data producer available: {:?}", &data_producer_id);
-                    let mut data_consumer = broadcaster.consume_data(data_producer_id.clone()).await.unwrap();
-                    let cont_mutex = controllers.clone();
-                    tokio::spawn(async move {
-                        while let Some(message) = data_consumer.next().await {
-                            log::trace!("{:?}", message);
-
-                            if let Some(cont_mutex) = &cont_mutex {
-                               if  message.len() == 13 {
-                                let mut conts = cont_mutex.lock().unwrap();
-                                let res = conts.set_state(controllers::NetworkControllerState(message.try_into().unwrap()));
-                                match &res {
-                                    Err(e) => log::warn!("Error writing input: {:?}", e),
-                                    Ok(_) => (),
-                                };
-                               }
-                            }
-                        }
-                        log::debug!("data producer {:?} is gone", data_producer_id);
-                    });
-                },
-                _ = shutdown.recv() => {break},
-                else => {break}
-            }
-        }
-    });
-
     println!("Press Enter to end session...");
-    let _ = std::io::stdin().read(&mut [0u8]).unwrap();
+
+    let _vcm_capturer = broadcaster
+        .produce_video_from_vcm_capturer(Some(-1), 1280, 720, 30)
+        .await;
+    let _alsa_capturer = broadcaster.produce_audio_from_default_alsa().await;
+    let mut shutdown = signaller.shutdown();
+    let mut stdin = tokio::io::stdin();
+    let mut _buf = [0];
+    loop {
+        tokio::select! {
+            Some(Ok(response)) = data_producer_available_stream.next() => {
+                let data_producer_id = response.data.unwrap().data_producer_available;
+                log::debug!("data producer available: {:?}", &data_producer_id);
+                let mut data_consumer = broadcaster.consume_data(data_producer_id.clone()).await.unwrap();
+                let cont_mutex = controllers.clone();
+                tokio::spawn(async move {
+                    while let Some(message) = data_consumer.next().await {
+                        log::debug!("{:?}", message);
+
+                        if let Some(cont_mutex) = &cont_mutex {
+                           if  message.len() == 13 {
+                            let mut conts = cont_mutex.lock().unwrap();
+                            let res = conts.set_state(controllers::NetworkControllerState(message.try_into().unwrap()));
+                            match &res {
+                                Err(e) => log::warn!("Error writing input: {:?}", e),
+                                Ok(_) => (),
+                            };
+                           }
+                        }
+                    }
+                    log::debug!("data producer {:?} is gone", data_producer_id);
+                });
+            },
+            _ = stdin.read(&mut _buf), if atty::is(Stream::Stdin) => {break}
+            _ = shutdown.recv() => {break},
+            else => {break}
+        }
+    }
 
     Ok(())
 }
