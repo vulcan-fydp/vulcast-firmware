@@ -7,6 +7,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 WorkingDirectory=~
+Environment="RUST_LOG=debug"
 ExecStart=/usr/bin/vulcast-firmware --config-dir /etc/vulcast-firmware
 Restart=always
 PrivateTmp=true

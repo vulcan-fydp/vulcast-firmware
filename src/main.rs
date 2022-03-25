@@ -249,7 +249,7 @@ async fn main() -> Result<()> {
         tokio::select! {
             Some(Ok(response)) = data_producer_available_stream.next() => {
                 let data_producer_id = response.data.unwrap().data_producer_available;
-                log::debug!("data producer available: {:?}", &data_producer_id);
+                log::trace!("data producer available: {:?}", &data_producer_id);
                 let mut data_consumer = broadcaster.consume_data(data_producer_id.clone()).await.unwrap();
                 let cont_mutex = controllers.clone();
                 tokio::spawn(async move {
